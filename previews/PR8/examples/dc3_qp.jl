@@ -13,7 +13,6 @@ using L2ODC3, L2OCore
 using JuMP, HiGHS
 using LinearAlgebra, Random, Statistics
 using Lux, Optimisers, Zygote
-import MathOptInterface as MOI
 
 # ## The problem
 #
