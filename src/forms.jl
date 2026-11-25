@@ -75,6 +75,11 @@ function constraint_vjp end
 
 # Shared batch helpers ---------------------------------------------------------
 
+# Treat `x` as a constant for AD.
+_stopgrad(x) = ChainRulesCore.ignore_derivatives(x)
+# Run `f()` outside of AD (avoids generating rules, and their keyword methods).
+_nograd(f) = ChainRulesCore.ignore_derivatives(f)
+
 """
     min_objective(form, Y, P) -> AbstractVector
 

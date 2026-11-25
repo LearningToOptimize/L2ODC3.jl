@@ -30,7 +30,7 @@ function _inequality_weights(
 )
     F = L2OCore.constraint_values(form, Y, P)
     lower, upper = row_bounds(form)
-    return 2 .* _inmask(form) .* _projection_residual(F, lower, upper)
+    return 2 .* _nograd(() -> _inmask(form)) .* _projection_residual(F, lower, upper)
 end
 
 # 2·(F - Π(F)) on all box rows: ∇_F φ for FSNet's φ = ‖h‖² + ‖g⁺‖².
@@ -47,7 +47,6 @@ function _inmask(form::AbstractProblemForm)
     mask[inequality_indices(form)] .= one(eltype(mask))
     return mask
 end
-ChainRulesCore.@non_differentiable _inmask(::Any)
 
 """
     inequality_correction(form, completion, Z, P; steps, step_size, momentum = 0,
@@ -90,7 +89,7 @@ function inequality_correction(
     Y = equality_completion(c, Z, P)
     V = zero(Z)
     for _ in 1:steps
-        if tol > 0 && _max_inequality_violation(form, Y, P) <= tol
+        if tol > 0 && _nograd(() -> _max_inequality_violation(form, Y, P)) <= tol
             break
         end
         G = reduced_violation_gradient(form, c, Y, P)
@@ -104,9 +103,6 @@ end
 function _max_inequality_violation(form, Y, P)
     return maximum(abs, inequality_residual(form, Y, P); init=zero(eltype(Y)))
 end
-ChainRulesCore.@non_differentiable _max_inequality_violation(::Any, ::Any, ::Any)
-
-_stopgrad(x) = ChainRulesCore.ignore_derivatives(x)
 
 """
     violation_gradient(form, Y, P) -> AbstractMatrix
@@ -153,7 +149,7 @@ function feasibility_seeking(
     S = Y
     K = min(unroll, steps)
     for _ in 1:K
-        if tol > 0 && _max_total_violation(form, S, P) <= tol
+        if tol > 0 && _nograd(() -> _max_total_violation(form, S, P)) <= tol
             return S
         end
         S = S .- step_size .* violation_gradient(form, S, P)
@@ -165,7 +161,7 @@ end
 
 function _continue_descent(form, S, P, steps, step_size, tol)
     for _ in 1:steps
-        if tol > 0 && _max_total_violation(form, S, P) <= tol
+        if tol > 0 && _nograd(() -> _max_total_violation(form, S, P)) <= tol
             break
         end
         S = S .- step_size .* violation_gradient(form, S, P)
@@ -176,4 +172,3 @@ end
 function _max_total_violation(form, Y, P)
     return maximum(total_violation(form, Y, P); init=zero(eltype(Y)))
 end
-ChainRulesCore.@non_differentiable _max_total_violation(::Any, ::Any, ::Any)

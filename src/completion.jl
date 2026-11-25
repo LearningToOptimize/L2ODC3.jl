@@ -453,7 +453,7 @@ end
 
 # Place the rows of W at positions `rows` of an m-row zero matrix (AD-friendly).
 function _embed_rows(W::AbstractMatrix, rows::AbstractVector{Int}, m::Int)
-    S = _selection(eltype(W), rows, m)
+    S = _nograd(() -> _selection(eltype(W), rows, m))
     return S * W
 end
 
@@ -464,4 +464,3 @@ function _selection(::Type{T}, rows::AbstractVector{Int}, m::Int) where {T}
     end
     return S
 end
-ChainRulesCore.@non_differentiable _selection(::Any, ::Any, ::Any)
