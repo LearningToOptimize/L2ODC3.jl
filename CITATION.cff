@@ -1,0 +1,37 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it and the papers of the methods it implements."
+title: "L2ODC3.jl: DC3 and FSNet for learning to optimize with hard constraints in Julia"
+authors:
+  - name: "LearningToOptimize.jl contributors"
+repository-code: "https://github.com/LearningToOptimize/L2ODC3.jl"
+url: "https://LearningToOptimize.github.io/L2ODC3.jl/dev/"
+license: MIT
+keywords:
+  - learning to optimize
+  - hard constraints
+  - optimization proxies
+  - julia
+  - jump
+references:
+  - type: conference-paper
+    title: "DC3: A learning method for optimization with hard constraints"
+    authors:
+      - family-names: Donti
+        given-names: Priya L.
+      - family-names: Rolnick
+        given-names: David
+      - family-names: Kolter
+        given-names: J. Zico
+    collection-title: "International Conference on Learning Representations (ICLR)"
+    year: 2021
+    url: "https://arxiv.org/abs/2104.12225"
+  - type: article
+    title: "FSNet: Feasibility-Seeking Neural Network for Constrained Optimization with Guarantees"
+    authors:
+      - family-names: Nguyen
+        given-names: Hoang T.
+      - family-names: Donti
+        given-names: Priya L.
+    journal: "arXiv preprint arXiv:2506.00362"
+    year: 2025
+    url: "https://arxiv.org/abs/2506.00362"
