@@ -8,8 +8,6 @@ A problem is a JuMP model whose instance data are parameters. Wrap it in an
 ```jldoctest guide
 julia> using L2ODC3, L2OCore, JuMP
 
-julia> import MathOptInterface as MOI
-
 julia> model = Model();
 
 julia> @variable(model, d[1:2] in MOI.Parameter.([1.0, 2.0]));

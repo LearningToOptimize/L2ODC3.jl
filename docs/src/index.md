@@ -32,6 +32,24 @@ flowchart LR
     loss -. "backprop through ρ and φ (implicit function theorem)" .-> NN
 ```
 
+## Installation
+
+The registered LearningToOptimize 1.0.0 predates the `L2OCore` interface.
+Until `L2OCore` and L2ODC3 are registered, install `L2OCore` from the
+`lib/L2OCore` folder of LearningToOptimize.jl first, then this package (Julia
+1.10 or later):
+
+```julia
+using Pkg
+Pkg.add(url="https://github.com/LearningToOptimize/LearningToOptimize.jl", subdir="lib/L2OCore")
+Pkg.add(url="https://github.com/LearningToOptimize/L2ODC3.jl")
+Pkg.add("JuMP")   # to write problems
+```
+
+The [example](examples/dc3_qp.md) also uses HiGHS, Lux, Optimisers and Zygote.
+
+## Contents
+
 - [Theory](theory.md): the methods as optimization problems, their
   derivatives and step sizes, and where the package departs from the papers.
 - [Package guide](guide.md): getting started, concepts, GPU, AD support and
