@@ -140,11 +140,50 @@ struct LinearCompletion{M<:AbstractMatrix,V<:AbstractVector} <: AbstractCompleti
 end
 
 function LinearCompletion(form::AffineForm{T}; dependent=nothing, rtol::Real=1e-9) where {T}
-    n, np = size(form.A, 2), size(form.B, 2)
     E = collect(form.eqidx)
-    AE = Matrix(form.A[E, :])
-    BE = Matrix(form.B[E, :])
-    bE = form.b[E] .- form.lower[E]
+    return _linear_completion(
+        Matrix(form.A[E, :]),
+        Matrix(form.B[E, :]),
+        form.b[E] .- form.lower[E],
+        T;
+        dependent=dependent,
+        rtol=rtol,
+    )
+end
+
+"""
+    LinearCompletion(form::NLPForm; dependent = nothing, rtol = 1e-9)
+
+Linear completion for a problem whose *equality* constraints are affine while
+the objective or the inequalities are nonlinear (e.g. the non-convex QP of
+Section 4.2 of Donti et al.). The affine data are read from the constant
+Jacobian of the equality rows.
+"""
+function LinearCompletion(form::NLPForm; dependent=nothing, rtol::Real=1e-9)
+    E = form.eqidx
+    all(view(form.affine, E)) || throw(
+        ArgumentError(
+            "LinearCompletion needs affine equality constraints; use NewtonCompletion"
+        ),
+    )
+    y, p = zeros(form.n), zeros(form.np)
+    J = constraint_jacobian(form, y, p)[E, :]
+    F0 = _constraint_values(form, reshape(y, :, 1), reshape(p, :, 1))[E, 1]
+    return _linear_completion(
+        J[:, 1:(form.n)],
+        J[:, (form.n + 1):end],
+        F0 .- form.lower[E],
+        Float64;
+        dependent=dependent,
+        rtol=rtol,
+    )
+end
+
+# Completion of `AE y + BE p + bE = 0`.
+function _linear_completion(
+    AE::AbstractMatrix, BE::AbstractMatrix, bE::AbstractVector, ::Type{T}; dependent, rtol
+) where {T}
+    n, np = size(AE, 2), size(BE, 2)
     rows, auto = select_dependent(AE; rtol=rtol)
     _check_redundant_rows(AE, BE, bE, rows, rtol)
     D = dependent === nothing ? auto : _validate_dependent(dependent, n, length(rows))

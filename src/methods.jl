@@ -8,6 +8,10 @@ _asbatch(x::AbstractMatrix) = x
 _asbatch(x::AbstractVector) = reshape(x, :, 1)
 _mean(v::AbstractVector) = sum(v) / length(v)
 
+# Hyper-parameters in the precision of the decomposition (e.g. Float32 after
+# `Adapt.adapt(CuArray{Float32}, d)`), so no Float64 promotion on the device.
+_like(d, x::Real) = convert(typeof(d.step_size), x)
+
 # =============================================================================
 # DC3
 # =============================================================================
@@ -41,8 +45,9 @@ Keyword arguments:
   - `momentum`: heavy-ball momentum of the correction (0.5 in the reference
     implementation; the `CorrectionDescent` claim needs `0`);
   - `test_tol`: stop the test-time correction once `max ReLU(g) ≤ test_tol`;
-  - `completion`: `:auto` (linear completion for affine equalities, Newton
-    otherwise), `:linear`, `:newton`, or a function
+  - `completion`: `:auto` (closed-form [`LinearCompletion`](@ref) when the
+    equalities are affine, [`NewtonCompletion`](@ref) otherwise), `:linear`,
+    `:newton` (forces the nonlinear form and Newton), or a function
     `(problem, form) -> AbstractCompletion` (extension point);
   - `dependent`: indices of the dependent variables (default: chosen by
     [`select_dependent`](@ref));
@@ -160,16 +165,13 @@ end
 
 function _dc3_completion(m::DC3, problem, form)
     m.completion isa Symbol || return m.completion(problem, form)
-    if form isa AffineForm
-        m.completion === :newton &&
-            error("internal error: Newton completion needs an NLPForm")
+    form isa AffineForm && return LinearCompletion(form; dependent=m.dependent)
+    affine_eq = all(view(form.affine, form.eqidx))
+    if m.completion === :linear || (m.completion === :auto && affine_eq)
+        affine_eq ||
+            throw(ArgumentError("completion = :linear needs affine equality constraints"))
         return LinearCompletion(form; dependent=m.dependent)
     end
-    m.completion === :linear && throw(
-        ArgumentError(
-            "completion = :linear needs affine constraints and an at most quadratic objective",
-        ),
-    )
     return NewtonCompletion(
         form, problem; dependent=m.dependent, maxiter=m.newton_maxiter, tol=m.newton_tol
     )
@@ -200,7 +202,7 @@ function predict(
         P;
         steps=training ? m.train_steps : m.test_steps,
         step_size=d.step_size,
-        momentum=m.momentum,
+        momentum=_like(d, m.momentum),
         tol=training ? 0.0 : m.test_tol,
     )
     return Y
@@ -238,7 +240,7 @@ The training loss of a batch of raw proxy outputs without an `L2OPipeline`
 """
 function training_loss(m::DC3, d::DC3Decomposition, P::AbstractMatrix, Z::AbstractMatrix)
     Y = predict(m, d, P, Z; training=true)
-    return soft_loss(d.form, Y, P; λ_ineq=m.λ_ineq, λ_eq=m.λ_eq)
+    return soft_loss(d.form, Y, P; λ_ineq=_like(d, m.λ_ineq), λ_eq=_like(d, m.λ_eq))
 end
 
 function L2OCore.complete(m::DC3, pipe::L2OCore.L2OPipeline, inputs, output)
@@ -323,14 +325,14 @@ end
     FSNetDecomposition(form, step_size)
 
 Result of `L2OCore.decompose(problem, ::FSNet)`: the proxy predicts all
-decision variables (`output_dimension = num_variables(form)`).
+decision variables (`output_dimension = L2OCore.num_decision_variables(form)`).
 """
 struct FSNetDecomposition{F<:AbstractProblemForm,T<:Real} <: L2OCore.AbstractDecomposition
     form::F
     step_size::T
 end
 
-L2OCore.output_dimension(d::FSNetDecomposition) = num_variables(d.form)
+L2OCore.output_dimension(d::FSNetDecomposition) = L2OCore.num_decision_variables(d.form)
 L2OCore.supports(::FSNet, ::_SUPPORTED_CLASSES) = true
 L2OCore.guarantees(::FSNet) = (L2OCore.NoGuarantee(),)
 
@@ -362,11 +364,11 @@ function training_loss(
     m::FSNet, d::FSNetDecomposition, P::AbstractMatrix, Y::AbstractMatrix
 )
     Ŷ = predict(m, d, P, Y; training=true)
-    ℓ = min_objective(d.form, Ŷ, P) .+ (m.ρ / 2) .* _colsumsq(Y .- Ŷ)
+    ℓ = min_objective(d.form, Ŷ, P) .+ _like(d, m.ρ / 2) .* _colsumsq(Y .- Ŷ)
     if m.penalty != 0
         φ = total_violation(d.form, Y, P)
         on = _stopgrad(φ .>= m.penalty_threshold)
-        ℓ = ℓ .+ m.penalty .* on .* φ
+        ℓ = ℓ .+ _like(d, m.penalty) .* on .* φ
     end
     return _mean(ℓ)
 end

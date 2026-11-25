@@ -18,9 +18,10 @@ and additionally provides
 
 | function | returns |
 |:--|:--|
+| `L2OCore.num_decision_variables(form)` | number of decision variables `n` (rows of `Y`) |
 | [`row_bounds`](@ref)`(form)` | `(lower, upper)`, one entry per row |
 | [`equality_indices`](@ref)`(form)` / [`inequality_indices`](@ref)`(form)` | row indices of `h` and `g` |
-| [`objective_sense`](@ref)`(form)` | `+1` (min) or `-1` (max) |
+| [`objective_sign`](@ref)`(form)` | `+1` (min) or `-1` (max) |
 | [`constraint_vjp`](@ref)`(form, Y, P, W)` | `J_y F(y_k, p_k)ᵀ W[:, k]` for every column |
 
 All functions are batch-first (batch = last dimension) and differentiable with
@@ -57,37 +58,30 @@ constraints `g_x(y) ≤ 0` of DC3 (two-sided rows count once).
 function inequality_indices end
 
 """
-    objective_sense(form::AbstractProblemForm) -> Real
+    objective_sign(form::AbstractProblemForm) -> Real
 
 `+1` for minimization (and feasibility) problems, `-1` for maximization.
 """
-function objective_sense end
+function objective_sign end
 
 """
     constraint_vjp(form::AbstractProblemForm, Y, P, W) -> AbstractMatrix
 
 Vector-Jacobian product of the constraint function for every instance:
-column `k` is `J_y F(Y[:, k], P[:, k])ᵀ W[:, k]` (`num_variables × B`), where
+column `k` is `J_y F(Y[:, k], P[:, k])ᵀ W[:, k]` (`n × B`), where
 `W` has one row per constraint row. Differentiable in `Y`, `P` and `W`.
 """
 function constraint_vjp end
-
-"""
-    num_variables(form::AbstractProblemForm) -> Int
-
-Number of decision variables `n` (rows of `Y`).
-"""
-function num_variables end
 
 # Shared batch helpers ---------------------------------------------------------
 
 """
     min_objective(form, Y, P) -> AbstractVector
 
-Objective of every column in minimization form, `objective_sense(form) * f`.
+Objective of every column in minimization form, `objective_sign(form) * f`.
 """
 min_objective(form::AbstractProblemForm, Y::AbstractMatrix, P::AbstractMatrix) =
-    objective_sense(form) .* L2OCore.batch_objective(form, Y, P)
+    objective_sign(form) .* L2OCore.batch_objective(form, Y, P)
 
 # Signed distance of each row to its interval: `F - clamp(F, lower, upper)`.
 # Its square is `ReLU(g)^2` for inequality rows and `h^2` for equality rows, and
@@ -246,11 +240,11 @@ function AffineForm(problem::L2OCore.ParametricProblem; T::Type{<:Real}=Float64)
     return AffineForm(L2OCore.MatrixEvaluator(problem; T=T))
 end
 
-num_variables(f::AffineForm) = size(f.A, 2)
+L2OCore.num_decision_variables(f::AffineForm) = size(f.A, 2)
 row_bounds(f::AffineForm) = (f.lower, f.upper)
 equality_indices(f::AffineForm) = f.eqidx
 inequality_indices(f::AffineForm) = f.inidx
-objective_sense(f::AffineForm) = f.sense
+objective_sign(f::AffineForm) = f.sense
 L2OCore.equality_rows(f::AffineForm) = f.eq
 L2OCore.bound_rows(f::AffineForm) = f.bnd
 
@@ -324,6 +318,7 @@ struct NLPForm{E<:MOI.Nonlinear.Evaluator} <: AbstractProblemForm
     upper::Vector{Float64}
     eq::BitVector
     bnd::BitVector
+    affine::BitVector
     eqidx::Vector{Int}
     inidx::Vector{Int}
     jac_structure::Vector{Tuple{Int,Int}}
@@ -351,6 +346,10 @@ _bounds(::MOI.Zeros) = (0.0, 0.0)
 _bounds(::MOI.Nonnegatives) = (0.0, Inf)
 _bounds(::MOI.Nonpositives) = (-Inf, 0.0)
 
+_is_affine(::Union{JuMP.AbstractVariableRef,JuMP.GenericAffExpr}) = true
+_is_affine(f::AbstractVector) = all(_is_affine, f)
+_is_affine(::Any) = false
+
 _snf(f::MOI.ScalarNonlinearFunction) = f
 _snf(f) = convert(MOI.ScalarNonlinearFunction, f)
 _scalar_rows(f::MOI.AbstractScalarFunction) = [f]
@@ -371,6 +370,7 @@ function NLPForm(problem::L2OCore.ParametricProblem)
     MOI.Nonlinear.set_objective(nlp, _snf(obj))
     lower, upper = fill(-Inf, m), fill(Inf, m)
     bnd = falses(m)
+    affine = falses(m)
     for (c, rows) in zip(L2OCore.constraint_refs(problem), L2OCore.dual_layout(problem))
         cobj = JuMP.constraint_object(c)
         set = JuMP.moi_set(cobj)
@@ -392,6 +392,7 @@ function NLPForm(problem::L2OCore.ParametricProblem)
         bnd[rows] .=
             cobj.func isa JuMP.AbstractVariableRef ||
             cobj.func isa AbstractVector{<:JuMP.AbstractVariableRef}
+        affine[rows] .= _is_affine(cobj.func)
     end
     order = vcat(JuMP.index.(vars), JuMP.index.(params))
     ev = MOI.Nonlinear.Evaluator(nlp, MOI.Nonlinear.SparseReverseMode(), order)
@@ -410,6 +411,7 @@ function NLPForm(problem::L2OCore.ParametricProblem)
         upper,
         eq,
         bnd,
+        affine,
         findall(eq),
         findall(inmask),
         js,
@@ -420,11 +422,11 @@ function NLPForm(problem::L2OCore.ParametricProblem)
     )
 end
 
-num_variables(f::NLPForm) = f.n
+L2OCore.num_decision_variables(f::NLPForm) = f.n
 row_bounds(f::NLPForm) = (f.lower, f.upper)
 equality_indices(f::NLPForm) = f.eqidx
 inequality_indices(f::NLPForm) = f.inidx
-objective_sense(f::NLPForm) = f.sense
+objective_sign(f::NLPForm) = f.sense
 L2OCore.equality_rows(f::NLPForm) = f.eq
 L2OCore.bound_rows(f::NLPForm) = f.bnd
 
