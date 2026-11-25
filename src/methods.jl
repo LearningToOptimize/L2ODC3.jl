@@ -17,8 +17,8 @@ _like(d, x::Real) = convert(typeof(d.step_size), x)
 # =============================================================================
 
 """
-    DC3(; λ_ineq = 10.0, λ_eq = 10.0, train_steps = 10, test_steps = 10,
-        step_size = nothing, momentum = 0.5, test_tol = 0.0,
+    DC3(; λ_ineq = 10.0, λ_eq = 10.0, penalty = :squared, train_steps = 10,
+        test_steps = 10, step_size = nothing, momentum = 0.5, test_tol = 0.0,
         completion = :auto, dependent = nothing,
         newton_maxiter = 50, newton_tol = 1e-10)
 
@@ -39,12 +39,20 @@ rows). `complete(pipe, inputs, output)` applies the equality completion
 Keyword arguments:
 
   - `λ_ineq`, `λ_eq`: soft-loss weights `λ_g`, `λ_h`;
+  - `penalty`: `:squared` (eq. (2) of the paper, default) or `:norm`, which
+    uses `‖ReLU(g)‖₂` and `‖h‖₂` without squares as the reference implementation
+    does (it also splits a total weight 10 as `λ_g = λ_h = 5`);
   - `train_steps`, `test_steps`: correction steps `t_train`, `t_test`;
-  - `step_size`: correction step `γ`; `nothing` uses `1/L` for affine
-    problems ([`default_step_size`](@ref)) and must be given for nonlinear ones;
-  - `momentum`: heavy-ball momentum of the correction (0.5 in the reference
-    implementation; the `CorrectionDescent` claim needs `0`);
-  - `test_tol`: stop the test-time correction once `max ReLU(g) ≤ test_tol`;
+  - `step_size`: correction step `γ`; `nothing` uses `(1 - momentum)/L` for
+    affine problems ([`default_step_size`](@ref)), a step for which both plain
+    gradient descent (`momentum = 0`) and heavy-ball momentum provably converge
+    on the convex reduced violation; it must be given for nonlinear problems.
+    (The paper fixes `γ = 10⁻⁷` for its QPs, Appendix B.1.);
+  - `momentum`: heavy-ball momentum `μ` of the correction (0.5 in the paper,
+    Appendix B; the `CorrectionDescent` claim is stated for `μ = 0`);
+  - `test_tol`: stop the test-time correction once `max ReLU(g) ≤ test_tol`
+    (the paper's stopping tolerance is `10⁻⁴`, Appendix B; `0` runs exactly
+    `t_test` steps as in Algorithm 1);
   - `completion`: `:auto` (closed-form [`LinearCompletion`](@ref) when the
     equalities are affine, [`NewtonCompletion`](@ref) otherwise), `:linear`,
     `:newton` (forces the nonlinear form and Newton), or a function
@@ -61,6 +69,7 @@ Supports `LinearConic` (box-like sets only), `ConvexQuadratic` and
 struct DC3{S,C} <: L2OCore.AbstractPrimalMethod
     λ_ineq::Float64
     λ_eq::Float64
+    penalty::Symbol
     train_steps::Int
     test_steps::Int
     step_size::S
@@ -75,6 +84,7 @@ end
 function DC3(;
     λ_ineq::Real=10.0,
     λ_eq::Real=10.0,
+    penalty::Symbol=:squared,
     train_steps::Integer=10,
     test_steps::Integer=10,
     step_size::Union{Nothing,Real}=nothing,
@@ -90,12 +100,15 @@ function DC3(;
         step_size > 0 ||
         throw(ArgumentError("step_size must be positive"))
     0 <= momentum < 1 || throw(ArgumentError("momentum must be in [0, 1)"))
+    penalty in (:squared, :norm) ||
+        throw(ArgumentError("penalty must be :squared or :norm"))
     completion isa Symbol &&
         !(completion in (:auto, :linear, :newton)) &&
         throw(ArgumentError("completion must be :auto, :linear, :newton or a function"))
     return DC3(
         Float64(λ_ineq),
         Float64(λ_eq),
+        penalty,
         Int(train_steps),
         Int(test_steps),
         step_size === nothing ? nothing : Float64(step_size),
@@ -141,6 +154,7 @@ L2OCore.guarantees(::DC3) = (L2OCore.EqualityFeasible(),)
 descended: the reduced inequality violation `v(z)` for DC3
 (`L = 2‖A_I K_z‖₂²`) or FSNet's `φ(y)` (`L = 2‖A‖₂²`). Only defined for
 [`AffineForm`](@ref); nonlinear problems need an explicit `step_size`.
+`DC3` scales it by `1 - momentum` (see [`DC3`](@ref)).
 """
 function default_step_size(form::AffineForm, c::LinearCompletion)
     I = collect(form.inidx)
@@ -180,7 +194,14 @@ end
 function L2OCore.decompose(problem::L2OCore.ParametricProblem, m::DC3)
     form = m.completion === :newton ? NLPForm(problem) : problem_form(problem)
     c = _dc3_completion(m, problem, form)
-    γ = m.step_size === nothing ? default_step_size(form, c) : m.step_size
+    # Default (1 - μ)/L: the descent lemma for μ = 0; for μ > 0 a step in the
+    # range where averaged heavy-ball iterates converge on convex L-smooth
+    # functions (Ghadimi, Feyzmahdavian & Johansson, 2015).
+    γ = if m.step_size === nothing
+        (1 - m.momentum) * default_step_size(form, c)
+    else
+        m.step_size
+    end
     return DC3Decomposition(form, c, γ)
 end
 
@@ -209,11 +230,14 @@ function predict(
 end
 
 """
-    soft_loss(form, Y, P; λ_ineq, λ_eq) -> Real
+    soft_loss(form, Y, P; λ_ineq, λ_eq, penalty = :squared) -> Real
 
 Batch mean of the soft loss of eq. (2) of Donti et al.,
-`f_x(y) + λ_ineq ‖ReLU(g_x(y))‖² + λ_eq ‖h_x(y)‖²` (objective in minimization
-form).
+`f_x(y) + λ_ineq ‖ReLU(g_x(y))‖²₂ + λ_eq ‖h_x(y)‖²₂` (objective in minimization
+form). With `penalty = :norm` the penalties are `‖ReLU(g_x(y))‖₂` and
+`‖h_x(y)‖₂` (not squared), as in the reference implementation of the paper;
+the norm is smoothed as `sqrt(‖r‖² + ε²)` with `ε = eps(T)` so that its
+gradient is finite at feasible points.
 """
 function soft_loss(
     form::AbstractProblemForm,
@@ -221,16 +245,22 @@ function soft_loss(
     P::AbstractMatrix;
     λ_ineq::Real,
     λ_eq::Real,
+    penalty::Symbol=:squared,
 )
+    penalty in (:squared, :norm) ||
+        throw(ArgumentError("penalty must be :squared or :norm"))
+    pen = penalty === :squared ? identity : _smooth_sqrt
     ℓ = min_objective(form, Y, P)
     if λ_ineq != 0
-        ℓ = ℓ .+ λ_ineq .* inequality_violation(form, Y, P)
+        ℓ = ℓ .+ λ_ineq .* pen(inequality_violation(form, Y, P))
     end
     if λ_eq != 0
-        ℓ = ℓ .+ λ_eq .* equality_violation(form, Y, P)
+        ℓ = ℓ .+ λ_eq .* pen(equality_violation(form, Y, P))
     end
     return _mean(ℓ)
 end
+
+_smooth_sqrt(v::AbstractVector) = sqrt.(v .+ eps(eltype(v))^2)
 
 """
     training_loss(method, decomposition, P, output) -> Real
@@ -240,7 +270,9 @@ The training loss of a batch of raw proxy outputs without an `L2OPipeline`
 """
 function training_loss(m::DC3, d::DC3Decomposition, P::AbstractMatrix, Z::AbstractMatrix)
     Y = predict(m, d, P, Z; training=true)
-    return soft_loss(d.form, Y, P; λ_ineq=_like(d, m.λ_ineq), λ_eq=_like(d, m.λ_eq))
+    return soft_loss(
+        d.form, Y, P; λ_ineq=_like(d, m.λ_ineq), λ_eq=_like(d, m.λ_eq), penalty=m.penalty
+    )
 end
 
 function L2OCore.complete(m::DC3, pipe::L2OCore.L2OPipeline, inputs, output)
@@ -257,8 +289,8 @@ end
 # =============================================================================
 
 """
-    FSNet(; ρ = 1.0, train_steps = 20, test_steps = 100, unroll = train_steps,
-          step_size = nothing, penalty = 0.0, penalty_threshold = 1e3,
+    FSNet(; ρ = 10.0, train_steps = 20, test_steps = 100, unroll = train_steps,
+          step_size = nothing, penalty = 10.0, penalty_threshold = 1e3,
           test_tol = 0.0)
 
 Feasibility-Seeking Neural Network (Nguyen & Donti, 2025,
@@ -274,8 +306,12 @@ F = f_x(\\hat y) + \\frac{\\rho}{2}\\|y_\\theta(x) - \\hat y\\|_2^2
 
 Keyword arguments: `ρ`; `train_steps` (`K`) and `unroll` (`K'`, derivatives
 flow through the first `K'` of the `K` iterations); `test_steps`; `step_size`
-(`η_φ`; `nothing` uses `1/L` for affine problems); `penalty` (`ρ_φ`, off by
-default) and `penalty_threshold` (`Q`); `test_tol` (early stop at test time).
+(`η_φ`; `nothing` uses `1/L` for affine problems); `penalty` (`ρ_φ`; `0`
+disables it) and `penalty_threshold` (`Q`); `test_tol` (early stop at test time).
+The defaults `ρ = 10` (distance weight `ρ/2 = 5`), `ρ_φ = 10` and `Q = 10³`
+are those of the authors' reference configuration; the switch is evaluated per
+instance on `φ(y_θ(x))`, as in the paper's formula (the reference code switches
+on batch means).
 
 The paper's experiments use L-BFGS for the inner problem; this implementation
 uses gradient descent, the setting of the paper's convergence theory.
@@ -295,12 +331,12 @@ struct FSNet{S} <: L2OCore.AbstractPrimalMethod
 end
 
 function FSNet(;
-    ρ::Real=1.0,
+    ρ::Real=10.0,
     train_steps::Integer=20,
     test_steps::Integer=100,
     unroll::Integer=train_steps,
     step_size::Union{Nothing,Real}=nothing,
-    penalty::Real=0.0,
+    penalty::Real=10.0,
     penalty_threshold::Real=1e3,
     test_tol::Real=0.0,
 )
