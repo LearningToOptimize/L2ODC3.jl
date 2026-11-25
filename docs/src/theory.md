@@ -1,9 +1,9 @@
 # Theory
 
 This page states the two methods as optimization problems, fixes the notation,
-and lists every claim the implementation makes, together with its assumptions
-and the test that checks it numerically. Equation numbers in parentheses refer
-to the papers:
+derives the derivatives and step sizes the implementation uses, and records
+where the package departs from the papers. Equation numbers in parentheses
+refer to the papers:
 
 - **[DC3]** P. L. Donti, D. Rolnick, J. Z. Kolter. *DC3: A learning method for
   optimization with hard constraints.* ICLR 2021.
@@ -141,13 +141,11 @@ lies in the range where the averaged heavy-ball iterates converge on convex
 instead fixes ``\gamma = 10^{-7}`` for its QPs, "as most methods went unstable
 for higher correction learning rates" (Appendix B.1 of [DC3]).
 
-**On the paper's convergence statement.** Section 3.2 of [DC3] says that for
-problems with linear constraints "the correction process is mathematically
-guaranteed to converge". The paper gives no proposition or proof for this. The
-claims `CorrectionDescent` and `CorrectionConvergesAffine` below make it
-precise: the assumptions are a step ``\gamma \le 1/L`` and a nonempty
-feasible set; convergence holds without momentum, and for averaged iterates
-with momentum.
+**On the paper's convergence statement.** Section 3.2 of [DC3] states that,
+for problems with linear constraints, the correction process converges, without
+a precise statement. [Convergence of the corrections](@ref) below gives one:
+with a step ``\gamma \le 1/L`` and a nonempty feasible set, the violation goes
+to zero without momentum, and the averaged iterates converge with momentum.
 
 ### Training loss (eq. (2) of [DC3])
 
@@ -214,45 +212,63 @@ F = f_x(\hat y) + \frac{\rho}{2}\|y_\theta(x) - \hat y\|_2^2
 For affine constraints, ``\phi`` is convex with ``L = 2\|A\|_2^2``
 ([`lipschitz_constant`](@ref)), and the default step is ``\eta = 1/L``.
 
-## Claims and guarantees
+## Convergence of the corrections
 
-Each claim has a name (a type), a precise statement with its assumptions, and a
-numerical check (`check(claim, ...)`). The names are the anchors to which
-formal proofs can be attached later.
+**Completion.** If ``A_{E,D}`` is nonsingular (the dependent-variable selection
+above enforces it), the affine completion satisfies ``h_x(\hat y) = 0`` up to
+round-off for every proxy output (Section 3.1 of [DC3]). For nonlinear ``h``,
+the completion satisfies the equalities to the Newton tolerance whenever
+Newton's method converges, which is the case for ``h \in C^2`` with
+``J^h_{:,D}`` nonsingular near the root and a start in its basin. Under the same
+nonsingularity, and ``h \in C^1`` near the completed point, the implicit
+function theorem gives eqs. (3)–(4), so the vector-Jacobian product above is
+the derivative of the completion map.
 
-| name | statement | assumptions | checked in |
-|:--|:--|:--|:--|
-| `EqualityFeasible` (L2OCore) | ``h_x(\hat y) = 0`` to tolerance for every output of `complete(pipe, ...)` (DC3) | affine ``h``: none beyond ``A_{E,D}`` nonsingular (enforced at construction); nonlinear ``h``: Newton converges (``h \in C^2``, ``J^h_{:,D}`` nonsingular near the root, start in the basin) | `test_completion.jl`, `test_correction.jl`, `test_methods.jl` |
-| [`CompletionJacobian`](@ref) | the VJP used for ``\varphi_x`` equals the derivative of the completion map (eq. (3)–(4)) | ``h \in C^1`` near the completed point, ``J^h_{:,D}`` nonsingular | `test_completion.jl` |
-| [`CorrectionDescent`](@ref) | ``v(z_{k+1}) \le v(z_k) - \tfrac{\gamma}{2}\|\nabla v(z_k)\|^2`` | ``\nabla v`` is ``L``-Lipschitz, ``0 < \gamma \le 1/L``, momentum ``0``. Holds for affine constraints with the default step. | `test_correction.jl` |
-| `CorrectionConvergesAffine` (test name) | for affine constraints and a nonempty feasible set, ``v(z_k) \to 0`` (rate ``O(1/k)``, linear by Hoffman's bound) | as above, plus feasibility; with momentum ``\mu``, step ``(1-\mu)/L`` (averaged iterates) | `test_correction.jl`, `test_reference.jl` |
-| reference equivalence | completion, reduced gradient (`G_eff`, `h_eff`), momentum steps and the loss equal the formulas of the authors' code | affine equalities | `test_reference.jl` |
-| [`FeasibilitySeekingDescent`](@ref) | ``\phi(s_{k+1}) \le \phi(s_k) - \tfrac{\eta}{2}\|\nabla\phi(s_k)\|^2`` | ``\nabla\phi`` is ``L``-Lipschitz, ``0 < \eta \le 1/L`` | `test_correction.jl` |
-| FSNet Theorem 1 | ``\phi(s_k) \le (1 - \mu/L)^k \phi(s_0)`` | ``\phi`` is ``L``-smooth and satisfies PL with constant ``\mu``, and a feasible point exists. Holds for affine constraints with a nonempty feasible set. | `test_correction.jl` (convergence to ``\phi < 10^{-12}``) |
-| gradient correctness | Zygote gradients of every loss, completion, correction and form primitive equal central finite differences | smoothness at the test points | all test files |
-| solver agreement | completion and correction reproduce the solver optimum from its independent part. At the optimum the soft loss equals ``f^\star``. Descent on the DC3 loss reaches feasible points within 1–2% of HiGHS (QP, LP) and returns to Ipopt's local optimum. | convexity (QP/LP); local analysis (NLP) | `test_optima.jl` |
+**Descent.** If ``\nabla v`` is ``L``-Lipschitz and ``0 < \gamma \le 1/L``, a
+correction step without momentum decreases the violation by the descent lemma,
 
-**Proof sketches.**
+```math
+v(z - \gamma\nabla v(z)) \le v(z) - \gamma\big(1 - \tfrac{L\gamma}{2}\big)\|\nabla v(z)\|^2
+\le v(z) - \tfrac{\gamma}{2}\|\nabla v(z)\|^2 .
+```
 
-- *CorrectionDescent / FeasibilitySeekingDescent.* This is the descent lemma:
-  for ``L``-smooth ``v`` and ``\gamma \le 1/L``,
-  ``v(z - \gamma\nabla v) \le v(z) - \gamma(1 - L\gamma/2)\|\nabla v\|^2 \le v(z) - \tfrac{\gamma}{2}\|\nabla v\|^2``.
-  No convexity is needed. With momentum the iterates are not monotone in
-  general, so the claim is stated for ``\mu = 0``.
-- *Affine smoothness.* ``v(z) = \|\hat r(z)\|^2`` with
-  ``\hat r = \hat F - \Pi(\hat F)`` and ``\hat F = \hat G z + c(x)``. The map
-  ``F \mapsto F - \Pi(F)`` is 1-Lipschitz, so
-  ``\|\nabla v(z) - \nabla v(z')\| = 2\|\hat G^\top(\hat r(z) - \hat r(z'))\| \le 2\|\hat G\|^2\|z - z'\|``.
-- *CorrectionConvergesAffine and PL for affine constraints.* The function
-  ``v`` is convex (a squared distance to a convex set, composed with an affine
-  map) and ``L``-smooth. Gradient descent with ``\gamma = 1/L`` gives
-  ``v(z_k) - v^\star \le L\|z_0 - z^\star\|^2 / (2k)``. If the reduced feasible
-  set is nonempty, ``v^\star = 0``. By Hoffman's error bound for polyhedra,
-  ``v(z) \ge c\, \operatorname{dist}(z, S)^2`` (quadratic growth), which for
-  convex functions is equivalent to the PL inequality (Karimi, Nutini &
-  Schmidt, 2016). This gives a linear rate, as in Theorem 1 of [FSNet]. The
-  same argument applies to FSNet's ``\phi`` with ``A`` in place of ``\hat G``.
-  The paper's instances are feasible by construction (eq. (6) of [DC3]).
+No convexity is needed. The same inequality holds for FSNet's
+``\phi(s_{k+1}) \le \phi(s_k) - \tfrac{\eta}{2}\|\nabla\phi(s_k)\|^2`` with
+``0 < \eta \le 1/L``. With momentum the iterates are not monotone in general.
+
+**Smoothness for affine constraints.** Write ``v(z) = \|\hat r(z)\|^2`` with
+``\hat r = \hat F - \Pi(\hat F)`` and ``\hat F = \hat G z + c(x)``. The map
+``F \mapsto F - \Pi(F)`` is 1-Lipschitz, so
+
+```math
+\|\nabla v(z) - \nabla v(z')\| = 2\|\hat G^\top(\hat r(z) - \hat r(z'))\| \le 2\|\hat G\|^2\|z - z'\| ,
+```
+
+which is the constant ``L`` used for the default step.
+
+**Rates for affine constraints.** The function ``v`` is convex (a squared
+distance to a convex set, composed with an affine map) and ``L``-smooth.
+Gradient descent with ``\gamma = 1/L`` gives
+``v(z_k) - v^\star \le L\|z_0 - z^\star\|^2 / (2k)``. If the reduced feasible
+set ``S`` is nonempty, ``v^\star = 0``. By Hoffman's error bound for polyhedra,
+``v(z) \ge c\, \operatorname{dist}(z, S)^2`` (quadratic growth), which for
+convex functions is equivalent to the Polyak–Łojasiewicz inequality (Karimi,
+Nutini & Schmidt, 2016). With PL constant ``\kappa`` this gives the linear rate
+``v(z_k) \le (1 - \kappa/L)^k v(z_0)``. The same argument applies to FSNet's
+``\phi`` with ``A`` in place of ``\hat G``, and gives
+``\phi(s_k) \le (1 - \kappa/L)^k \phi(s_0)``, the rate of Theorem 1 of [FSNet]
+(where the PL constant is called ``\mu``). With
+momentum ``\mu`` and step ``(1 - \mu)/L``, the averaged heavy-ball iterates
+converge at rate ``O(1/k)`` (Ghadimi, Feyzmahdavian & Johansson, 2015). The
+paper's instances are feasible by construction (eq. (6) of [DC3]).
+
+**Agreement with the reference code and with solvers.** For affine equalities,
+the completion, the reduced gradient (`G_eff`, `h_eff`), the momentum steps
+and the loss coincide with the formulas of the authors' code. Starting from the
+independent part of a solver optimum, completion and correction reproduce that
+optimum, and the soft loss there equals ``f^\star``. Descent on the DC3 loss
+reaches feasible points within 1–2% of HiGHS on QPs and LPs, and returns to
+Ipopt's local optimum on a nonlinear problem.
 
 ## Deviations from the papers
 
@@ -280,7 +296,7 @@ formal proofs can be attached later.
   sometimes unstable" on AC-OPF and splits the completion into a Newton part
   and a closed-form part. Such problem-specific completions plug in through
   [`AbstractCompletion`](@ref).
-- **Defaults and their provenance:**
+- **Defaults compared with the paper and the authors' code:**
 
   | | paper | authors' code | this package |
   |:--|:--|:--|:--|

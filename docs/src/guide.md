@@ -44,7 +44,7 @@ julia> Z = [0.2 0.1];                    # raw proxy output for both
 
 julia> pred = complete(pipe, P, Z);
 
-julia> check(EqualityFeasible(), pipe.problem, P, pred).passed
+julia> maximum(evaluate(pipe, P, pred).max_equality_violation) < 1e-12
 true
 
 julia> loss(pipe, P, Z) isa Real
@@ -114,7 +114,8 @@ flowchart LR
 - `step_size`: `nothing` means ``(1 - \mu)/L`` for affine problems, which is
   safe. Without momentum the violation never increases, and with momentum
   ``\mu`` the heavy-ball iterates still converge (see Theory). For nonlinear problems, start
-  around ``0.01``–``0.1`` and check [`CorrectionDescent`](@ref) on a few samples.
+  around ``0.01``–``0.1`` and verify on a few samples that
+  [`inequality_violation`](@ref) decreases from one correction step to the next.
 - `train_steps` (``t_\text{train}``): a few steps (5–10) are enough to shape the
   gradient. Every step adds a completion and a backward pass.
 - `test_steps` with `test_tol`: allow many test-time steps and stop early once
@@ -177,10 +178,7 @@ All extension is by dispatch on abstract types:
   [`row_bounds`](@ref), [`equality_indices`](@ref),
   [`inequality_indices`](@ref), [`objective_sign`](@ref) and
   [`constraint_vjp`](@ref). DC3 and FSNet then work unchanged. A form is also an
-  `L2OCore.AbstractEvaluator`, so `evaluate` and `check` accept it as
-  `evaluator`.
-- **New guarantee or claim**: subtype `L2OCore.AbstractGuarantee` and add a
-  `L2OCore.check` method, as done for [`CompletionJacobian`](@ref).
+  `L2OCore.AbstractEvaluator`, so `evaluate` accepts it as `evaluator`.
 
 ### Planned: ExaModels and other front ends
 
@@ -195,7 +193,7 @@ Hessian-vector product) are needed beyond plain evaluation.
 ## The LearningToOptimize ecosystem
 
 - [LearningToOptimize.jl](https://github.com/LearningToOptimize/LearningToOptimize.jl):
-  the core interface (`L2OCore`: problems, pipelines, evaluators, guarantees),
+  the core interface (`L2OCore`: problems, pipelines, evaluators),
   basic penalty methods and dataset utilities.
 - [L2ODLL.jl](https://github.com/LearningToOptimize/L2ODLL.jl): dual Lagrangian
   learning (dual proxies with valid bounds).

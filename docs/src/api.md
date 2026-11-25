@@ -61,7 +61,7 @@ feasibility_seeking
 default_step_size
 ```
 
-## Claims
+## Other exported names
 
 ```@docs
 CompletionJacobian

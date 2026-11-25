@@ -71,9 +71,9 @@ for _ in 1:300
 end
 
 X = rand(2, 5) .- 0.5
-pred = complete(pipe, X, W * X .+ b)               # completion + correction
-check(EqualityFeasible(), pipe.problem, X, pred)   # equalities hold to round-off
-evaluate(pipe, X, pred)                            # objective and violations
+pred = complete(pipe, X, W * X .+ b)   # completion + correction
+report = evaluate(pipe, X, pred)       # objective and violations per instance
+maximum(report.max_equality_violation) # equalities hold to round-off
 ```
 
 The [documentation](https://LearningToOptimize.github.io/L2ODC3.jl/dev/) has a
@@ -103,18 +103,18 @@ QP of the DC3 paper and compares both with HiGHS.
 | problem classes | LP, QP, smooth NLP | LP, QP, smooth NLP |
 | GPU (affine problems) | yes (`Adapt.adapt(CuArray, pipe.decomposition)`) | yes |
 
-Every mathematical claim is a named, numerically checked guarantee:
-`EqualityFeasible`, `CompletionJacobian` (implicit-function-theorem
-derivatives match finite differences), `CorrectionDescent` and
-`FeasibilitySeekingDescent` (the violation does not increase for steps
-`≤ 1/L`). The [Theory](https://LearningToOptimize.github.io/L2ODC3.jl/dev/theory/)
-page states their assumptions.
+The DC3 completion satisfies affine equalities to round-off, and its
+implicit-function-theorem derivatives are exact. For steps `≤ 1/L`, the
+correction and FSNet's feasibility seeking never increase the violation, and
+for affine constraints with a nonempty feasible set they drive it to zero. The
+[Theory](https://LearningToOptimize.github.io/L2ODC3.jl/dev/theory/) page
+derives these properties and compares the defaults with the papers.
 
 ## The LearningToOptimize ecosystem
 
 - [LearningToOptimize.jl](https://github.com/LearningToOptimize/LearningToOptimize.jl):
-  the `L2OCore` interface (parametric problems, pipelines, evaluators,
-  guarantees), basic methods and data generation.
+  the `L2OCore` interface (parametric problems, pipelines, evaluators), basic
+  methods and data generation.
 - [L2ODLL.jl](https://github.com/LearningToOptimize/L2ODLL.jl): dual Lagrangian
   learning, i.e. dual proxies with valid bounds.
 - [DecisionRules.jl](https://github.com/LearningToOptimize/DecisionRules.jl):

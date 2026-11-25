@@ -32,8 +32,8 @@ flowchart LR
     loss -. "backprop through ρ and φ (implicit function theorem)" .-> NN
 ```
 
-- [Theory](theory.md): the methods as optimization problems, with the claims
-  they make and the assumptions behind them.
+- [Theory](theory.md): the methods as optimization problems, their
+  derivatives and step sizes, and where the package departs from the papers.
 - [Package guide](guide.md): getting started, concepts, GPU, AD support and
   extension points.
 - [Example](examples/dc3_qp.md): training a DC3 and an FSNet proxy on the
