@@ -26,7 +26,7 @@ problem_form
 row_bounds
 equality_indices
 inequality_indices
-objective_sign
+L2OCore.objective_sign(::AbstractProblemForm)
 constraint_vjp
 constraint_jacobian
 min_objective

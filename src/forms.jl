@@ -60,9 +60,11 @@ function inequality_indices end
 """
     objective_sign(form::AbstractProblemForm) -> Real
 
-`+1` for minimization (and feasibility) problems, `-1` for maximization.
+`+1` for minimization (and feasibility) problems, `-1` for maximization: a
+method of `L2OCore.objective_sign`, so that `objective_sign(form) * f` is always
+minimized.
 """
-function objective_sign end
+L2OCore.objective_sign(::AbstractProblemForm)
 
 """
     constraint_vjp(form::AbstractProblemForm, Y, P, W) -> AbstractMatrix
@@ -249,7 +251,7 @@ L2OCore.num_decision_variables(f::AffineForm) = size(f.A, 2)
 row_bounds(f::AffineForm) = (f.lower, f.upper)
 equality_indices(f::AffineForm) = f.eqidx
 inequality_indices(f::AffineForm) = f.inidx
-objective_sign(f::AffineForm) = f.sense
+L2OCore.objective_sign(f::AffineForm) = f.sense
 L2OCore.equality_rows(f::AffineForm) = f.eq
 L2OCore.bound_rows(f::AffineForm) = f.bnd
 
@@ -431,7 +433,7 @@ L2OCore.num_decision_variables(f::NLPForm) = f.n
 row_bounds(f::NLPForm) = (f.lower, f.upper)
 equality_indices(f::NLPForm) = f.eqidx
 inequality_indices(f::NLPForm) = f.inidx
-objective_sign(f::NLPForm) = f.sense
+L2OCore.objective_sign(f::NLPForm) = f.sense
 L2OCore.equality_rows(f::NLPForm) = f.eq
 L2OCore.bound_rows(f::NLPForm) = f.bnd
 

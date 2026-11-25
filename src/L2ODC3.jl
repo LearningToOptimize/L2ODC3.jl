@@ -20,7 +20,7 @@ module L2ODC3
 
 using ChainRulesCore: ChainRulesCore
 using JuMP: JuMP
-using L2OCore: L2OCore
+using L2OCore: L2OCore, objective_sign
 using LinearAlgebra: LinearAlgebra
 import MathOptInterface as MOI
 using Random: Random
