@@ -1,6 +1,6 @@
 name = "L2ODC3"
 uuid = "8c219513-6c13-44e5-85c4-1da37bbbae23"
-authors = ["LearningToOptimize.jl contributors"]
+authors = ["Klamkin", "Michael <michael@klamkin.com> and contributors"]
 version = "0.1.0-DEV"
 
 [deps]
