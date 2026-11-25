@@ -1,4 +1,3 @@
-using L2ODC3
 using Test
 using Optimisers
 
@@ -9,7 +8,6 @@ using Mooncake
 
 using DifferentiationInterface
 const DI = DifferentiationInterface
-
 
 @testset "DI over Optimisers" begin
     function test_nested(outer, inner)
@@ -34,7 +32,7 @@ const DI = DifferentiationInterface
         @test all(!isnan, grad)
         @test all(>(0), grad)
 
-        true
+        return true
     end
     backends = [AutoForwardDiff, AutoZygote, AutoEnzyme, AutoMooncake]
     working_combos = Dict(k => Set() for k in backends)
@@ -43,9 +41,7 @@ const DI = DifferentiationInterface
             @testset "$_outer over $_inner" begin
                 if (
                     (_outer in (AutoZygote, AutoEnzyme, AutoMooncake)) ||
-                    (_outer === AutoForwardDiff && _inner in (
-                        AutoEnzyme, AutoMooncake
-                    ))
+                    (_outer === AutoForwardDiff && _inner in (AutoEnzyme, AutoMooncake))
                 )
                     @test_throws "" test_nested(_outer, _inner)
                 else
