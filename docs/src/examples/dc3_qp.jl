@@ -63,7 +63,9 @@ test = generate_data(pipe; sampler, n=200, rng, optimizer=HiGHS.Optimizer)
 
 # ## The proxy and the training loop
 
-net = Chain(Dense(neq => 64, relu), Dense(64 => 64, relu), Dense(64 => output_dimension(pipe)))
+net = Chain(
+    Dense(neq => 64, relu), Dense(64 => 64, relu), Dense(64 => output_dimension(pipe))
+)
 ps, st = Lux.setup(rng, net)
 ps = f64(ps)  # the problem data are Float64
 proxy(P, ps) = first(net(P, ps, st))
@@ -110,7 +112,9 @@ check(EqualityFeasible(), problem, P, pred; atol=1e-9)
 # [`FSNet`](@ref) predicts every variable and runs gradient descent on the total
 # violation `‖h‖² + ‖ReLU(g)‖²` (step `1/L`); the loss adds `ρ/2 ‖y - ŷ‖²`.
 
-fpipe = L2OPipeline(problem, FSNet(; ρ=1.0, train_steps=10, test_steps=2000, test_tol=1e-16))
+fpipe = L2OPipeline(
+    problem, FSNet(; ρ=1.0, train_steps=10, test_steps=2000, test_tol=1e-16)
+)
 fnet = Chain(Dense(neq => 64, relu), Dense(64 => 64, relu), Dense(64 => n))
 fps, fst = Lux.setup(rng, fnet)
 fps = f64(fps)
