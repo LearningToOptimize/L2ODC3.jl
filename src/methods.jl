@@ -26,9 +26,9 @@ Deep Constraint Completion and Correction (Donti, Rolnick & Kolter, ICLR 2021,
 [arXiv:2104.12225](https://arxiv.org/abs/2104.12225)), a primal method.
 
 The proxy predicts the independent variables `z` (`output_dimension(pipe)`
-rows). [`complete`](@ref L2OCore.complete) applies the equality completion
+rows). `complete(pipe, inputs, output)` applies the equality completion
 `φ_x` ([`equality_completion`](@ref)) and `test_steps` correction steps
-([`inequality_correction`](@ref)); [`loss`](@ref L2OCore.loss) applies
+([`inequality_correction`](@ref)); `loss(pipe, inputs, output)` applies
 `train_steps` correction steps and returns the soft loss (eq. (2) of the paper)
 
 ```math
