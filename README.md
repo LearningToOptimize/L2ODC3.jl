@@ -1,10 +1,10 @@
 # L2ODC3.jl
 
 [![CI](https://github.com/LearningToOptimize/L2ODC3.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/LearningToOptimize/L2ODC3.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![codecov](https://codecov.io/gh/LearningToOptimize/L2ODC3.jl/graph/badge.svg)](https://app.codecov.io/gh/LearningToOptimize/L2ODC3.jl)
 [![Docs: dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://LearningToOptimize.github.io/L2ODC3.jl/dev/)
-[![Docs: stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://LearningToOptimize.github.io/L2ODC3.jl/stable/)
-[![Code style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/JuliaDiff/BlueStyle)
+[![Codecov](https://codecov.io/gh/LearningToOptimize/L2ODC3.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/LearningToOptimize/L2ODC3.jl)
+[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
+[![JET](https://img.shields.io/badge/%F0%9F%9B%A9%EF%B8%8F_tested_with-JET.jl-233f9a)](https://github.com/aviatesk/JET.jl)
 
 L2ODC3.jl trains neural-network proxies for parametric optimization problems
 with **hard constraints**. It implements **DC3**, *Deep Constraint Completion
@@ -35,21 +35,24 @@ flowchart LR
 ## Installation
 
 L2ODC3 builds on `L2OCore`, the shared interface of the
-[LearningToOptimize](https://github.com/LearningToOptimize) ecosystem. Until
-both are registered:
+[LearningToOptimize](https://github.com/LearningToOptimize) ecosystem, which
+lives in the `lib/L2OCore` folder of LearningToOptimize.jl. The registered
+LearningToOptimize 1.0.0 predates this API and does not contain `L2OCore`.
+Until both packages are registered, install `L2OCore` first and then L2ODC3,
+on any Julia version from 1.10:
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/LearningToOptimize/LearningToOptimize.jl",
-        subdir="lib/L2OCore", rev="ar/l2ocore-design")
+Pkg.add(url="https://github.com/LearningToOptimize/LearningToOptimize.jl", subdir="lib/L2OCore")
 Pkg.add(url="https://github.com/LearningToOptimize/L2ODC3.jl")
 ```
+
+The example below also needs JuMP and Zygote: `Pkg.add(["JuMP", "Zygote"])`.
 
 ## Example
 
 ```julia
 using L2ODC3, L2OCore, JuMP, Zygote
-import MathOptInterface as MOI
 
 # Parametric QP: x are the parameters, y the decisions.
 model = Model()
@@ -112,14 +115,14 @@ derives these properties and compares the defaults with the papers.
 
 ## The LearningToOptimize ecosystem
 
-- [LearningToOptimize.jl](https://github.com/LearningToOptimize/LearningToOptimize.jl):
-  the `L2OCore` interface (parametric problems, pipelines, evaluators), basic
-  methods and data generation.
-- [L2ODLL.jl](https://github.com/LearningToOptimize/L2ODLL.jl): dual Lagrangian
-  learning, i.e. dual proxies with valid bounds.
-- [DecisionRules.jl](https://github.com/LearningToOptimize/DecisionRules.jl):
-  decision rules for multistage stochastic programs.
-- **L2ODC3.jl**: primal proxies with hard constraints (DC3, FSNet).
+| Package | What it provides |
+|:--|:--|
+| [LearningToOptimize.jl](https://github.com/LearningToOptimize/LearningToOptimize.jl) | the penalty method, Flux training and solver-labeled dataset generation; hosts the two subpackages below |
+| ↳ [L2OCore](https://github.com/LearningToOptimize/LearningToOptimize.jl/tree/main/lib/L2OCore) | the shared interface: method families, problem wrapper, batched evaluators, datasets |
+| ↳ [L2OSobolev](https://github.com/LearningToOptimize/LearningToOptimize.jl/tree/main/lib/L2OSobolev) | derivative (Sobolev) supervision added to any method |
+| [L2ODLL.jl](https://github.com/LearningToOptimize/L2ODLL.jl) | Dual Lagrangian Learning: dual proxies that give valid dual bounds for conic problems |
+| [L2ODC3.jl](https://github.com/LearningToOptimize/L2ODC3.jl) | DC3: equality completion and inequality correction for primal proxies |
+| [L2OALM.jl](https://github.com/LearningToOptimize/L2OALM.jl) | primal-dual learning with an augmented Lagrangian |
 
 ## Citation
 
