@@ -61,14 +61,6 @@ feasibility_seeking
 default_step_size
 ```
 
-## Other exported names
-
-```@docs
-CompletionJacobian
-CorrectionDescent
-FeasibilitySeekingDescent
-```
-
 ## L2OCore pipeline steps implemented here
 
 ```@docs

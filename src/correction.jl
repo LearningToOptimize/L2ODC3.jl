@@ -72,9 +72,9 @@ to the Newton tolerance (a deliberate deviation).
 `tol > 0` stops early once every instance has `max ReLU(g) ≤ tol` (use at test
 time only; the stopping test is not differentiated).
 
-Guarantee (`CorrectionDescent`, see the Theory page): if the reduced violation
-`v(z) = ‖ReLU(g_x([z; φ_x(z)]))‖²` has an `L`-Lipschitz gradient, `momentum = 0`
-and `0 < step_size ≤ 1/L`, then `v(z_{k+1}) ≤ v(z_k) - (γ/2)‖Δz_k‖²`.
+If the reduced violation `v(z) = ‖ReLU(g_x([z; φ_x(z)]))‖²` has an
+`L`-Lipschitz gradient, `momentum = 0` and `0 < step_size ≤ 1/L`, then
+`v(z_{k+1}) ≤ v(z_k) - (γ/2)‖Δz_k‖²` (descent lemma; see the Theory page).
 """
 function inequality_correction(
     form::AbstractProblemForm,
@@ -129,10 +129,9 @@ unrolled differentiation, Section 5 of the paper); the remaining iterations
 contribute a constant offset. `tol > 0` stops early once `φ ≤ tol` for every
 instance (not differentiated).
 
-Guarantees (`FeasibilitySeekingDescent`): with `φ` `L`-smooth and
-`0 < η ≤ 1/L`, `φ(s_{k+1}) ≤ φ(s_k)`; if moreover `φ` satisfies the
-Polyak–Łojasiewicz inequality with constant `μ` and a feasible point exists,
-`φ(s_k) ≤ (1 - μ/L)^k φ(s_0)` (Theorem 1 of the paper). For affine
+With `φ` `L`-smooth and `0 < η ≤ 1/L`, `φ(s_{k+1}) ≤ φ(s_k)`; if moreover
+`φ` satisfies the Polyak–Łojasiewicz inequality with constant `μ` and a
+feasible point exists, `φ(s_k) ≤ (1 - μ/L)^k φ(s_0)` (Theorem 1 of the paper). For affine
 constraints with a nonempty feasible set both assumptions hold (Hoffman's
 error bound), with `L` from [`lipschitz_constant`](@ref).
 """

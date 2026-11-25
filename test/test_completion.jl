@@ -1,4 +1,4 @@
-@testset "linear completion: EqualityFeasible and IFT Jacobian" begin
+@testset "linear completion satisfies the equalities; IFT Jacobian" begin
     for seed in 1:3
         model, data = dc3_qp(; n=10, neq=4, nin=5, seed=seed)
         prob = ParametricProblem(model)
@@ -12,14 +12,14 @@
         P, Z = uniform(rng, 4, 7), randn(rng, 6, 7)
         Y = equality_completion(c, Z, P)
         @test Y[independent_indices(c), :] == Z
-        # Claim EqualityFeasible: h_x(φ_x(z)) = 0.
-        @test check(EqualityFeasible(), prob, P, Prediction(; primal=Y); atol=1e-10).passed
+        # The completion satisfies the equalities: h_x(φ_x(z)) = 0.
+        @test max_equality_violation(prob, P, Prediction(; primal=Y)) <= 1e-10
         @test maximum(abs, data.A * Y .- P) < 1e-10
         # eq. (3): ∂φ/∂z = -(J^h_φ)⁻¹ J^h_z.
         D, Zi = dependent_indices(c), independent_indices(c)
         @test c.Kz[D, :] ≈ -(data.A[:, D] \ data.A[:, Zi])
-        # Claim CompletionJacobian (VJP vs finite differences).
-        @test check(CompletionJacobian(), pipe, P, Z; rng=StableRNG(1)).passed
+        # IFT Jacobian-vector products vs finite differences.
+        @test maximum(completion_jacobian_error(pipe, P, Z; rng=StableRNG(1))) <= 1e-5
         @test grad_error(z -> sum(equality_completion(c, z, P) .^ 2), Z) < 1e-8
     end
 end
@@ -64,7 +64,7 @@ end
     @test output_dimension(pipe) == 2   # one equality is redundant
     P = reshape([0.3, -1.0], 1, 2)
     Y = equality_completion(pipe.decomposition.completion, [0.1 0.2; -0.4 0.5], P)
-    @test check(EqualityFeasible(), prob, P, Prediction(; primal=Y); atol=1e-12).passed
+    @test max_equality_violation(prob, P, Prediction(; primal=Y)) <= 1e-12
     # Inconsistent redundancy: infeasible for some parameters.
     @test_throws ArgumentError L2OPipeline(
         ParametricProblem(redundant_lp(; consistent=false)), DC3()
@@ -91,10 +91,8 @@ end
     rng = StableRNG(10)
     P, Z = uniform(rng, 2, 6; lo=0, hi=1), 0.6 .* randn(rng, 2, 6)
     Y = equality_completion(c, Z, P)
-    @test check(
-        EqualityFeasible(), prob, P, Prediction(; primal=Y); atol=1e-9, evaluator=d.form
-    ).passed
-    @test check(CompletionJacobian(), pipe, P, Z; rng=StableRNG(2)).passed
+    @test max_equality_violation(prob, P, Prediction(; primal=Y); evaluator=d.form) <= 1e-9
+    @test maximum(completion_jacobian_error(pipe, P, Z; rng=StableRNG(2))) <= 1e-5
     # IFT derivatives with respect to z and p, vs finite differences.
     V = randn(rng, 4, 6)
     @test grad_error(z -> sum(equality_completion(c, z, P) .* V), Z) < 1e-7

@@ -94,7 +94,7 @@ end
 
 @testset "heavy-ball correction with the default step converges (affine)" begin
     # Section 3.2 of Donti et al. states that for linear constraints the
-    # correction is guaranteed to converge; with momentum μ the default step
+    # correction converges; with momentum μ the default step
     # (1 - μ)/L is in the range where heavy ball provably converges.
     model, _ = dc3_qp(; n=10, neq=4, nin=6, seed=44)
     prob = ParametricProblem(model)

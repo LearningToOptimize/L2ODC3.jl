@@ -14,6 +14,7 @@ using Zygote: Zygote
 using JLArrays: JLArray
 
 include("problems.jl")
+include("properties.jl")
 
 @testset "L2ODC3" begin
     @testset "problem forms" include("test_forms.jl")

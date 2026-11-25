@@ -49,7 +49,8 @@ Keyword arguments:
     on the convex reduced violation; it must be given for nonlinear problems.
     (The paper fixes `γ = 10⁻⁷` for its QPs, Appendix B.1.);
   - `momentum`: heavy-ball momentum `μ` of the correction (0.5 in the paper,
-    Appendix B; the `CorrectionDescent` claim is stated for `μ = 0`);
+    Appendix B; the descent inequality of the Theory page is stated for
+    `μ = 0`);
   - `test_tol`: stop the test-time correction once `max ReLU(g) ≤ test_tol`
     (the paper's stopping tolerance is `10⁻⁴`, Appendix B; `0` runs exactly
     `t_test` steps as in Algorithm 1);
@@ -61,9 +62,9 @@ Keyword arguments:
     [`select_dependent`](@ref));
   - `newton_maxiter`, `newton_tol`: Newton completion settings.
 
-Guarantees: `EqualityFeasible` (to round-off for affine equalities; to
-`newton_tol` when Newton converges for nonlinear equalities).
-Supports `LinearConic` (box-like sets only), `ConvexQuadratic` and
+Completed predictions satisfy the equality constraints to round-off for
+affine equalities, and to `newton_tol` when Newton converges for nonlinear
+equalities. Supports `LinearConic` (box-like sets only), `ConvexQuadratic` and
 `SmoothNonlinear` problems.
 """
 struct DC3{S,C} <: L2OCore.AbstractPrimalMethod
@@ -144,7 +145,6 @@ independent_indices(d::DC3Decomposition) = independent_indices(d.completion)
 dependent_indices(d::DC3Decomposition) = dependent_indices(d.completion)
 
 L2OCore.supports(::DC3, ::_SUPPORTED_CLASSES) = true
-L2OCore.guarantees(::DC3) = (L2OCore.EqualityFeasible(),)
 
 """
     default_step_size(form, completion) -> Real
@@ -316,8 +316,8 @@ on batch means).
 The paper's experiments use L-BFGS for the inner problem; this implementation
 uses gradient descent, the setting of the paper's convergence theory.
 
-Guarantees: none for a finite number of steps (`NoGuarantee`); the
-`FeasibilitySeekingDescent` claim holds under the stated assumptions.
+A finite number of steps does not make the prediction feasible; under the
+assumptions of [`feasibility_seeking`](@ref) each step reduces the violation.
 """
 struct FSNet{S} <: L2OCore.AbstractPrimalMethod
     ρ::Float64
@@ -370,7 +370,6 @@ end
 
 L2OCore.output_dimension(d::FSNetDecomposition) = L2OCore.num_decision_variables(d.form)
 L2OCore.supports(::FSNet, ::_SUPPORTED_CLASSES) = true
-L2OCore.guarantees(::FSNet) = (L2OCore.NoGuarantee(),)
 
 function L2OCore.decompose(problem::L2OCore.ParametricProblem, m::FSNet)
     form = problem_form(problem)

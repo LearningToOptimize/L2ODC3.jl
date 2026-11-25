@@ -5,8 +5,6 @@
     @test !supports(DC3(), MixedInteger())
     @test supports(FSNet(), SmoothNonlinear())
     @test !supports(FSNet(), MixedInteger())
-    @test guarantees(DC3()) == (EqualityFeasible(),)
-    @test guarantees(FSNet()) == (NoGuarantee(),)
     @test method_family(DC3()) == PrimalFamily()
     @test_throws UnsupportedProblemError L2OPipeline(ParametricProblem(milp()), DC3())
     @test_throws ArgumentError DC3(; step_size=-1.0)
@@ -39,14 +37,12 @@ end
     )
     @test all(==(MOI.OPTIMAL), dsl.status)
     @test size(dsl.primal) == (8, 4)
-    # complete / evaluate / guarantees.
+    # complete / evaluate: the completion satisfies the equalities.
     rng = StableRNG(2)
     Z = randn(rng, 5, 10)
     pred = complete(pipe, ds.inputs, Z)
     @test pred isa Prediction && size(pred.primal) == (8, 10)
-    for g in guarantees(pipe.method)
-        @test check(g, prob, ds.inputs, pred; atol=1e-9).passed
-    end
+    @test max_equality_violation(prob, ds.inputs, pred) <= 1e-9
     rep = evaluate(pipe, ds.inputs, pred)
     @test maximum(rep.max_equality_violation) < 1e-9
     # Single instance (vector input).
@@ -113,7 +109,7 @@ end
     rng = StableRNG(6)
     P = uniform(rng, 3, 2)
     pred = complete(pipe, P, randn(rng, 5, 2))
-    @test check(EqualityFeasible(), prob, P, pred; atol=1e-9).passed
+    @test max_equality_violation(prob, P, pred) <= 1e-9
 end
 
 @testset "pipeline: FSNet" begin
@@ -125,6 +121,5 @@ end
     @test ds.metadata["method"] == "FSNet"
     rng = StableRNG(8)
     pred = complete(pipe, ds.inputs, randn(rng, 8, 5))
-    @test check(Feasible(), prob, ds.inputs, pred; atol=1e-5).passed
-    @test check(NoGuarantee(), prob, ds.inputs, pred).passed
+    @test max_violation(prob, ds.inputs, pred) <= 1e-5
 end

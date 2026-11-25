@@ -1,24 +1,22 @@
-@testset "CorrectionDescent (affine constraints, step 1/L)" begin
+@testset "correction steps decrease the violation (affine constraints, step 1/L)" begin
     for seed in 1:3
         model, _ = dc3_qp(; n=10, neq=4, nin=6, seed=seed)
         prob = ParametricProblem(model)
         pipe = L2OPipeline(prob, DC3())
         rng = StableRNG(seed)
         P, Z = uniform(rng, 4, 8), 3 .* randn(rng, 6, 8)
-        r = check(CorrectionDescent(), pipe, P, Z; steps=50)
-        @test r.passed
+        @test maximum(correction_descent_error(pipe, P, Z; steps=50)) <= 1e-8
     end
     prob = ParametricProblem(flow_lp())
     pipe = L2OPipeline(prob, DC3())
     rng = StableRNG(11)
-    @test check(
-        CorrectionDescent(), pipe, uniform(rng, 2, 5; lo=0, hi=3), 5 .* randn(rng, 2, 5)
-    ).passed
+    P, Z = uniform(rng, 2, 5; lo=0, hi=3), 5 .* randn(rng, 2, 5)
+    @test maximum(correction_descent_error(pipe, P, Z)) <= 1e-8
 end
 
 @testset "correction converges to feasibility (affine, feasible instances)" begin
-    # Section 3.2 of Donti et al.: for linear constraints the correction is
-    # guaranteed to converge. The paper's QP instances are feasible by
+    # Section 3.2 of Donti et al.: for linear constraints the correction
+    # converges. The paper's QP instances are feasible by
     # construction (eq. (6)), so the violation must vanish.
     model, _ = dc3_qp(; n=10, neq=4, nin=6, seed=7)
     prob = ParametricProblem(model)
@@ -92,9 +90,7 @@ end
     rng = StableRNG(15)
     P, Z = uniform(rng, 2, 5; lo=0, hi=1), 1.2 .* randn(rng, 2, 5)
     pred = complete(pipe, P, Z)
-    @test check(
-        EqualityFeasible(), prob, P, pred; atol=1e-9, evaluator=pipe.decomposition.form
-    ).passed
+    @test max_equality_violation(prob, P, pred; evaluator=pipe.decomposition.form) <= 1e-9
     d = pipe.decomposition
     @test sum(inequality_violation(d.form, pred.primal, P)) <
         sum(inequality_violation(d.form, equality_completion(d.completion, Z, P), P))
@@ -108,7 +104,7 @@ end
     @test d.step_size ≈ 1 / lipschitz_constant(d.form)
     rng = StableRNG(16)
     P, Y = uniform(rng, 4, 6), 3 .* randn(rng, 10, 6)
-    @test check(FeasibilitySeekingDescent(), pipe, P, Y; steps=50).passed
+    @test maximum(feasibility_descent_error(pipe, P, Y; steps=50)) <= 1e-8
     # Theorem 1 of Nguyen & Donti (PL holds for affine constraints): linear
     # convergence of φ to zero on feasible instances.
     φ0 = total_violation(d.form, Y, P)
@@ -157,6 +153,6 @@ end
     )
     rng = StableRNG(17)
     P, Y = uniform(rng, 2, 3; lo=0, hi=1), 0.8 .* randn(rng, 4, 3)
-    @test check(FeasibilitySeekingDescent(), pipe, P, Y; steps=10).passed
+    @test maximum(feasibility_descent_error(pipe, P, Y; steps=10)) <= 1e-8
     @test grad_error(y -> loss(pipe, P, y), Y) < 1e-6
 end

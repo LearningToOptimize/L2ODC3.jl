@@ -33,8 +33,8 @@ relgap(f, fstar) = abs.(f .- fstar) ./ max.(1, abs.(fstar))
     # (step scaled to the curvature λ/γ of the penalty term).
     Z = minimize_outputs(pipe, P, zeros(6, 6); iters=1000, lr=0.5 * d.step_size / 10)
     pred = complete(pipe, P, Z)
-    @test check(EqualityFeasible(), prob, P, pred; atol=1e-9).passed
-    @test check(Feasible(), prob, P, pred; atol=1e-6).passed
+    @test max_equality_violation(prob, P, pred) <= 1e-9
+    @test max_violation(prob, P, pred) <= 1e-6
     f = batch_objective(d.form, pred.primal, P)
     @test all(relgap(f, fstar) .< 1e-2)
     @test all(f .>= fstar .- 1e-6)   # feasible points cannot beat the optimum
@@ -51,7 +51,7 @@ end
     γ = pipe.decomposition.step_size
     Z = minimize_outputs(pipe, P, ones(2, 5); iters=1000, lr=0.5 * γ / 10)
     pred = complete(pipe, P, Z)
-    @test check(Feasible(), prob, P, pred; atol=1e-6).passed
+    @test max_violation(prob, P, pred) <= 1e-6
     f = batch_objective(pipe.decomposition.form, pred.primal, P)
     @test all(relgap(f, fstar) .< 2e-2)
     @test all(f .>= fstar .- 1e-6)
@@ -94,7 +94,7 @@ end
     Zi = independent_indices(d)
     pred = complete(pipe, P, Ystar[Zi, :])
     @test pred.primal ≈ Ystar atol = 1e-6
-    @test check(EqualityFeasible(), prob, P, pred; atol=1e-9, evaluator=d.form).passed
+    @test max_equality_violation(prob, P, pred; evaluator=d.form) <= 1e-9
     # No inequality is active at these optima, so y* is a stationary point of
     # the DC3 loss (penalties and corrections vanish nearby) ...
     @test maximum(abs, Zygote.gradient(z -> loss(pipe, P, z), Ystar[Zi, :])[1]) < 1e-8
@@ -104,6 +104,6 @@ end
     Z = minimize_outputs(pipe, P, Ystar[Zi, :] .+ 0.05; iters=500, lr=0.01)
     pred = complete(pipe, P, Z)
     f = batch_objective(d.form, pred.primal, P)
-    @test check(Feasible(), prob, P, pred; atol=1e-6, evaluator=d.form).passed
+    @test max_violation(prob, P, pred; evaluator=d.form) <= 1e-6
     @test all(relgap(f, fstar) .< 1e-6)
 end

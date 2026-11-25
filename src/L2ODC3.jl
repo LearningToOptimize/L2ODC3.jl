@@ -29,7 +29,6 @@ include("forms.jl")
 include("completion.jl")
 include("correction.jl")
 include("methods.jl")
-include("claims.jl")
 
 # Methods and decompositions
 export DC3, FSNet, DC3Decomposition, FSNetDecomposition
@@ -65,7 +64,5 @@ export reduced_violation_gradient,
     inequality_correction, violation_gradient, feasibility_seeking, default_step_size
 # Losses and batch entry points
 export soft_loss, predict, training_loss
-# Named claims
-export CompletionJacobian, CorrectionDescent, FeasibilitySeekingDescent
 
 end # module L2ODC3

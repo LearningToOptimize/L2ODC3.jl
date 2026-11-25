@@ -43,7 +43,7 @@ function dependent_indices end
 The completion `φ_x` of DC3: build `Y` (`n × B`) with `Y[independent, :] = Z`
 and the dependent rows chosen so that the equality constraints hold.
 
-Guarantee (`EqualityFeasible`): `h_x(Y) = 0` up to round-off (linear) or the
+The completed points satisfy `h_x(Y) = 0` up to round-off (linear) or the
 Newton tolerance (nonlinear, when Newton converges).
 """
 function equality_completion end
@@ -257,10 +257,10 @@ The dependent set is chosen by [`select_dependent`](@ref) on the equality
 Jacobian at `(y0, p0)` (start values and current parameter values) unless
 given.
 
-Assumptions: `h` is C² near the solution; `J^h_D` is nonsingular there; the
-start point is in Newton's basin of attraction. Instances where Newton does not
-reach `tol` are returned as they are (the `EqualityFeasible` check reports
-them).
+Newton converges when `h` is C² near the solution, `J^h_D` is nonsingular
+there and the start point is in Newton's basin of attraction. Instances where
+Newton does not reach `tol` are returned as they are; their equality violation
+shows in `L2OCore.evaluate`.
 """
 struct NewtonCompletion{F<:NLPForm} <: AbstractCompletion
     form::F
