@@ -111,9 +111,11 @@ one correction step is ``z \leftarrow z - \gamma \Delta z`` with
 ```
 
 followed by re-completion ([`reduced_violation_gradient`](@ref),
-[`inequality_correction`](@ref)). As in the reference implementation, the steps
-use heavy-ball momentum, ``v_{k+1} = \mu v_k + \Delta z_k`` and
-``z_{k+1} = z_k - \gamma v_{k+1}``. ``\rho^{(t)}`` denotes ``t`` steps; training
+[`inequality_correction`](@ref)). As in the reference implementation (momentum
+``0.5``, Appendix B of [DC3]), the steps use heavy-ball momentum,
+``v_{k+1} = \mu v_k + \Delta z_k`` and ``z_{k+1} = z_k - \gamma v_{k+1}``,
+which equals the reference update ``s \leftarrow \gamma \Delta y + \mu s``,
+``y \leftarrow y - s``. ``\rho^{(t)}`` denotes ``t`` steps; training
 uses ``t_\text{train}`` and testing ``t_\text{test}`` (Algorithm 1 of [DC3]).
 
 For affine equalities, re-completion gives exactly the paper's step
@@ -132,7 +134,20 @@ v(z) = \operatorname{dist}^2\big(\hat G z + \hat H x + \hat g_0,\ [\ell_I, u_I]\
 a convex function whose gradient ``2 \hat G^\top r`` is Lipschitz with
 ``L = 2 \|\hat G\|_2^2``. This holds because the projection residual is
 1-Lipschitz (firm non-expansiveness of the projection). The default step is
-``\gamma = 1/L`` ([`default_step_size`](@ref)).
+``\gamma = (1 - \mu)/L`` ([`default_step_size`](@ref) times ``1 - \mu``). For
+``\mu = 0`` this is ``1/L``, the step of the descent lemma. For ``\mu > 0`` it
+lies in the range where the averaged heavy-ball iterates converge on convex
+``L``-smooth functions (Ghadimi, Feyzmahdavian & Johansson, 2015). The paper
+instead fixes ``\gamma = 10^{-7}`` for its QPs, "as most methods went unstable
+for higher correction learning rates" (Appendix B.1 of [DC3]).
+
+**On the paper's convergence statement.** Section 3.2 of [DC3] says that for
+problems with linear constraints "the correction process is mathematically
+guaranteed to converge". The paper gives no proposition or proof for this. The
+claims `CorrectionDescent` and `CorrectionConvergesAffine` below make it
+precise: the assumptions are a step ``\gamma \le 1/L`` and a nonempty
+feasible set; convergence holds without momentum, and for averaged iterates
+with momentum.
 
 ### Training loss (eq. (2) of [DC3])
 
@@ -143,6 +158,12 @@ a convex function whose gradient ``2 \hat G^\top r`` is Lipschitz with
 
 averaged over the batch ([`soft_loss`](@ref)). The gradient flows through the
 completion (eq. (4)) and through the unrolled corrections.
+
+The paper's equation uses squared norms. The authors' reference code instead
+uses plain norms ``\|\mathrm{ReLU}(g)\|_2`` and ``\|h\|_2``, with
+``\lambda_g = \lambda_h = 5`` (total weight 10, equality fraction 0.5).
+`DC3(; penalty = :norm, λ_ineq = 5, λ_eq = 5)` reproduces that loss; the default
+is the paper's equation.
 
 ### Differentiating unrolled corrections
 
@@ -204,7 +225,8 @@ formal proofs can be attached later.
 | `EqualityFeasible` (L2OCore) | ``h_x(\hat y) = 0`` to tolerance for every output of `complete(pipe, ...)` (DC3) | affine ``h``: none beyond ``A_{E,D}`` nonsingular (enforced at construction); nonlinear ``h``: Newton converges (``h \in C^2``, ``J^h_{:,D}`` nonsingular near the root, start in the basin) | `test_completion.jl`, `test_correction.jl`, `test_methods.jl` |
 | [`CompletionJacobian`](@ref) | the VJP used for ``\varphi_x`` equals the derivative of the completion map (eq. (3)–(4)) | ``h \in C^1`` near the completed point, ``J^h_{:,D}`` nonsingular | `test_completion.jl` |
 | [`CorrectionDescent`](@ref) | ``v(z_{k+1}) \le v(z_k) - \tfrac{\gamma}{2}\|\nabla v(z_k)\|^2`` | ``\nabla v`` is ``L``-Lipschitz, ``0 < \gamma \le 1/L``, momentum ``0``. Holds for affine constraints with the default step. | `test_correction.jl` |
-| `CorrectionConvergesAffine` (test name) | for affine constraints and a nonempty feasible set, ``v(z_k) \to 0`` (rate ``O(1/k)``, linear by Hoffman's bound) | as above, plus feasibility | `test_correction.jl` |
+| `CorrectionConvergesAffine` (test name) | for affine constraints and a nonempty feasible set, ``v(z_k) \to 0`` (rate ``O(1/k)``, linear by Hoffman's bound) | as above, plus feasibility; with momentum ``\mu``, step ``(1-\mu)/L`` (averaged iterates) | `test_correction.jl`, `test_reference.jl` |
+| reference equivalence | completion, reduced gradient (`G_eff`, `h_eff`), momentum steps and the loss equal the formulas of the authors' code | affine equalities | `test_reference.jl` |
 | [`FeasibilitySeekingDescent`](@ref) | ``\phi(s_{k+1}) \le \phi(s_k) - \tfrac{\eta}{2}\|\nabla\phi(s_k)\|^2`` | ``\nabla\phi`` is ``L``-Lipschitz, ``0 < \eta \le 1/L`` | `test_correction.jl` |
 | FSNet Theorem 1 | ``\phi(s_k) \le (1 - \mu/L)^k \phi(s_0)`` | ``\phi`` is ``L``-smooth and satisfies PL with constant ``\mu``, and a feasible point exists. Holds for affine constraints with a nonempty feasible set. | `test_correction.jl` (convergence to ``\phi < 10^{-12}``) |
 | gradient correctness | Zygote gradients of every loss, completion, correction and form primitive equal central finite differences | smoothness at the test points | all test files |
@@ -248,7 +270,27 @@ formal proofs can be attached later.
 - **FSNet truncation:** derivatives through the first ``K'`` of ``K`` iterations
   (as stated in Section 5 of [FSNet]), with the later iterations entering as a
   constant offset.
-- **Defaults:** ``\lambda_g = \lambda_h = 10``, ``t_\text{train} = t_\text{test} = 10``
-  and momentum ``0.5``, as reported for the reference implementation. The
-  correction step defaults to ``1/L`` for affine problems, where the paper
-  tunes it, and must be given for nonlinear problems.
+- **Jacobian formed explicitly for affine equalities:** [DC3] recommends
+  vector-Jacobian products instead of forming ``\partial\varphi/\partial z``.
+  For affine equalities the Jacobian is constant, so ``K_z`` is formed once and
+  completion becomes one batched matrix product (GPU-friendly). Nonlinear
+  completion uses VJPs as recommended.
+- **Newton completion** is damped (backtracking on ``\|h\|_\infty``). Appendix
+  C.3 of [DC3] reports that solving for all variables with Newton's method "is
+  sometimes unstable" on AC-OPF and splits the completion into a Newton part
+  and a closed-form part. Such problem-specific completions plug in through
+  [`AbstractCompletion`](@ref).
+- **Defaults and their provenance:**
+
+  | | paper | authors' code | this package |
+  |:--|:--|:--|:--|
+  | soft loss | squared norms, eq. (2) | plain norms | squared (`penalty = :norm` for the code's form) |
+  | ``\lambda_g, \lambda_h`` | sum tuned in ``\{1, 10, 100\}`` | 5, 5 | 10, 10 (as in the FSNet authors' re-implementation of DC3) |
+  | ``t_\text{train}, t_\text{test}`` | 10, 10 (QP) | 10, 10 | 10, 10 |
+  | correction step ``\gamma`` | ``10^{-7}`` (QP) | ``10^{-7}`` (QP), ``10^{-4}`` (AC-OPF) | ``(1-\mu)/L`` (affine); required (nonlinear) |
+  | momentum ``\mu`` | 0.5 | 0.5 | 0.5 |
+  | test-time stopping tolerance | ``10^{-4}`` | ``10^{-4}`` (equalities and inequalities) | `test_tol = 0`: exactly ``t_\text{test}`` steps (Algorithm 1) |
+  | dependent variables | not specified | random subset with ``\lvert\det A_D\rvert \ge 10^{-4}`` | pivoted QR, or `dependent` |
+  | FSNet ``\rho`` (distance weight ``\rho/2``) | tuned | ``\rho/2 = 5`` | ``\rho = 10`` |
+  | FSNet early penalty ``\rho_\phi, Q`` | per instance, Section 5 | 10, ``10^3``, on batch means | 10, ``10^3``, per instance |
+  | FSNet inner solver | gradient descent (theory), L-BFGS (experiments) | L-BFGS, 50 iterations, 30 differentiated | gradient descent |

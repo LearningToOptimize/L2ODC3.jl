@@ -111,14 +111,17 @@ flowchart LR
 
 ## Choosing hyper-parameters
 
-- `step_size`: `nothing` means ``1/L`` for affine problems, which is safe (the
-  violation never increases without momentum). For nonlinear problems, start
+- `step_size`: `nothing` means ``(1 - \mu)/L`` for affine problems, which is
+  safe. Without momentum the violation never increases, and with momentum
+  ``\mu`` the heavy-ball iterates still converge (see Theory). For nonlinear problems, start
   around ``0.01``–``0.1`` and check [`CorrectionDescent`](@ref) on a few samples.
 - `train_steps` (``t_\text{train}``): a few steps (5–10) are enough to shape the
   gradient. Every step adds a completion and a backward pass.
 - `test_steps` with `test_tol`: allow many test-time steps and stop early once
   the inequalities hold to `test_tol`.
-- `λ_ineq`, `λ_eq`: 10 as in the paper. Larger values push the proxy toward
+- `λ_ineq`, `λ_eq`: 10 each (the paper tunes their sum in ``\{1, 10, 100\}``).
+  `penalty = :norm` with `λ_ineq = λ_eq = 5` reproduces the loss of the authors'
+  code. Larger values push the proxy toward
   feasibility but make the loss stiffer.
 - FSNet: `train_steps` (``K``) and `unroll` (``K'``) trade gradient accuracy for
   cost; `ρ` weighs the distance between the prediction and its feasible
