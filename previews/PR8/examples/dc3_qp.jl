@@ -87,9 +87,8 @@ end
 # ## Evaluation against HiGHS
 #
 # `complete(pipe, inputs, output)` applies the completion and the test-time
-# corrections. The equality constraints hold to round-off by construction
-# (`EqualityFeasible`); the inequality violation is driven to zero by the
-# correction.
+# corrections. The equality constraints hold to round-off by construction; the
+# inequality violation is driven to zero by the correction.
 
 P = test.inputs
 pred = complete(pipe, P, proxy(P, ps))
@@ -102,10 +101,6 @@ gap = (report.objective .- test.objective) ./ abs.(test.objective)
     max_equality_violation=maximum(report.max_equality_violation),
     max_inequality_violation=maximum(report.max_inequality_violation),
 )
-
-# The method's guarantee is checked numerically:
-
-check(EqualityFeasible(), problem, P, pred; atol=1e-9)
 
 # ## FSNet on the same problem
 #
