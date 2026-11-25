@@ -21,6 +21,7 @@ include("problems.jl")
     @testset "correction and feasibility seeking" include("test_correction.jl")
     @testset "methods and pipeline" include("test_methods.jl")
     @testset "solver optima" include("test_optima.jl")
+    @testset "reference implementations" include("test_reference.jl")
     @testset "GPU array types" include("test_gpu.jl")
     @testset "code quality" include("test_quality.jl")
 end
