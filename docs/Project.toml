@@ -1,2 +1,25 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+DocumenterMermaid = "a078cd44-4d9c-4618-b545-3ab9d77f9177"
+HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
+JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
+L2OCore = "53c59b28-8e5d-4af1-a2cf-8fe137dcdc09"
+L2ODC3 = "8c219513-6c13-44e5-85c4-1da37bbbae23"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
+Lux = "b2108857-7c20-44ae-9111-449ecde12c47"
+MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
+Optimisers = "3bd65402-5787-11e9-1adc-39752487f4e2"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
+
+[sources]
+L2OCore = {url = "https://github.com/LearningToOptimize/LearningToOptimize.jl", rev = "main", subdir = "lib/L2OCore"}
+L2ODC3 = {path = ".."}
+
+[compat]
+Documenter = "1"
+DocumenterMermaid = "0.1, 0.2"
+Literate = "2"
+Lux = "1"
