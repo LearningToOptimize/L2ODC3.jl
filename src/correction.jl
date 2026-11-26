@@ -29,22 +29,20 @@ function _inequality_weights(
     form::AbstractProblemForm, Y::AbstractMatrix, P::AbstractMatrix
 )
     F = L2OCore.constraint_values(form, Y, P)
-    lower, upper = row_bounds(form)
-    return 2 .* _nograd(() -> _inmask(form)) .* _projection_residual(F, lower, upper)
+    return 2 .* _nograd(() -> _inmask(form)) .* projection_residual(form, F)
 end
 
 # 2·(F - Π(F)) on all box rows: ∇_F φ for FSNet's φ = ‖h‖² + ‖g⁺‖².
 function _violation_weights(form::AbstractProblemForm, Y::AbstractMatrix, P::AbstractMatrix)
     F = L2OCore.constraint_values(form, Y, P)
-    lower, upper = row_bounds(form)
-    return 2 .* _projection_residual(F, lower, upper)
+    return 2 .* projection_residual(form, F)
 end
 
 function _inmask(form::AbstractProblemForm)
     lower, _ = row_bounds(form)
     mask = similar(lower)
     fill!(mask, zero(eltype(mask)))
-    mask[inequality_indices(form)] .= one(eltype(mask))
+    mask[violation_indices(form)] .= one(eltype(mask))
     return mask
 end
 

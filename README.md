@@ -87,8 +87,8 @@ QP of the DC3 paper and compares both with HiGHS.
 
 - A **JuMP model with parameters** (`@variable(m, p in MOI.Parameter(v))`). The
   parameters are the proxy inputs. Constraints use box-like sets (`==`, `<=`,
-  `>=`, intervals, variable bounds); functions may be affine, quadratic or
-  nonlinear.
+  `>=`, intervals, variable bounds) or second-order cones; functions may be
+  affine, quadratic or nonlinear.
 - A **proxy**: any callable from `num_parameters × B` to
   `output_dimension(pipe) × B` (a Lux or Flux network, a closure, an affine map).
 - A **training loop** in the framework of your choice, minimizing
@@ -103,7 +103,7 @@ QP of the DC3 paper and compares both with HiGHS.
 | proxy predicts | independent variables | all variables |
 | equalities | exact (round-off for affine, Newton tolerance otherwise) | approximate, driven to 0 |
 | inequalities | unrolled correction on the equality manifold | unrolled descent on the total violation |
-| problem classes | LP, QP, smooth NLP | LP, QP, smooth NLP |
+| problem classes | LP, QP, SOCP, smooth NLP | LP, QP, SOCP, smooth NLP |
 | GPU (affine problems) | yes (`Adapt.adapt(CuArray, pipe.decomposition)`) | yes |
 
 The DC3 completion satisfies affine equalities to round-off, and its

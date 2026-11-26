@@ -110,17 +110,16 @@ end
 """
     inequality_residual(form, Y, P) -> AbstractMatrix
 
-`ReLU(g_x(y))` for every column, as the signed distance of each inequality row
-to its interval (`num_inequalities × B`); its squared norm is the inequality
-violation term of the DC3 soft loss (eq. (2) of Donti et al.).
+`ReLU(g_x(y))` for every column: the signed distance of each inequality row
+to its interval, and the cone residual `F - Π_K(F)` of each cone block, on the
+rows [`violation_indices`](@ref) (`num_inequality_rows × B`). Its squared norm is
+the inequality violation term of the DC3 soft loss (eq. (2) of Donti et al.).
 """
 function inequality_residual(
     form::AbstractProblemForm, Y::AbstractMatrix, P::AbstractMatrix
 )
     F = L2OCore.constraint_values(form, Y, P)
-    lower, upper = row_bounds(form)
-    in = inequality_indices(form)
-    return _projection_residual(F[in, :], lower[in], upper[in])
+    return projection_residual(form, F)[violation_indices(form), :]
 end
 
 """
@@ -143,12 +142,17 @@ equality_violation(form::AbstractProblemForm, Y::AbstractMatrix, P::AbstractMatr
     total_violation(form, Y, P) -> AbstractVector
 
 FSNet's violation function `φ(y) = ‖h_x(y)‖²₂ + ‖ReLU(g_x(y))‖²₂` (eq. (3) of
-Nguyen & Donti, 2025) for every column.
+Nguyen & Donti, 2025) for every column, `‖F - Π_C(F)‖²` (see
+[`projection_residual`](@ref)).
 """
 function total_violation(form::AbstractProblemForm, Y::AbstractMatrix, P::AbstractMatrix)
-    F = L2OCore.constraint_values(form, Y, P)
-    lower, upper = row_bounds(form)
-    return _colsumsq(_projection_residual(F, lower, upper))
+    return _colsumsq(projection_residual(form, L2OCore.constraint_values(form, Y, P)))
+end
+
+function L2OCore.cone_violation(
+    form::AbstractProblemForm, Y::AbstractMatrix, P::AbstractMatrix
+)
+    return _cone_block_distances(form, L2OCore.constraint_values(form, Y, P))
 end
 
 _colsumsq(R::AbstractMatrix) = vec(sum(abs2, R; dims=1))
@@ -187,8 +191,9 @@ unchanged on GPU arrays once its fields are moved with `Adapt.adapt` (see the
 package extension) and is differentiable by any array AD.
 
 Assumptions: every constraint is a box-like set (`EqualTo`, `GreaterThan`,
-`LessThan`, `Interval`, `Zeros`, `Nonnegatives`, `Nonpositives`); problems with
-second-order or other non-decomposable cones are rejected.
+`LessThan`, `Interval`, `Zeros`, `Nonnegatives`, `Nonpositives`), a
+`SecondOrderCone` or a `RotatedSecondOrderCone`. Other cones (PSD, exponential,
+power) are rejected.
 """
 struct AffineForm{
     T<:Real,M<:AbstractMatrix{T},V<:AbstractVector{T},I<:AbstractVector{Int}
@@ -209,17 +214,12 @@ struct AffineForm{
     bnd::BitVector
     eqidx::I
     inidx::I
+    cones::Vector{Tuple{UnitRange{Int},Symbol}}
+    gidx::I
 end
 
 function AffineForm(ev::L2OCore.MatrixEvaluator{T}) where {T}
-    isempty(ev.cones) || throw(
-        ArgumentError(
-            "AffineForm supports only box-like constraint sets; the problem has " *
-            "$(length(ev.cones)) non-decomposable cone(s) " *
-            "($(join(unique(nameof(typeof(s)) for (_, s) in ev.cones), ", "))). " *
-            "DC3/FSNet need a differentiable violation of every inequality.",
-        ),
-    )
+    cones = Tuple{UnitRange{Int},Symbol}[(rows, _cone_kind(s)) for (rows, s) in ev.cones]
     eq = BitVector(ev.eq)
     inmask = _inequality_mask(ev.lower, ev.upper, eq)
     D(M) = Matrix{T}(M)
@@ -240,6 +240,8 @@ function AffineForm(ev::L2OCore.MatrixEvaluator{T}) where {T}
         BitVector(ev.bnd),
         findall(eq),
         findall(inmask),
+        cones,
+        sort!(vcat(findall(inmask), _cone_rows(cones))),
     )
 end
 
@@ -251,6 +253,8 @@ L2OCore.num_decision_variables(f::AffineForm) = size(f.A, 2)
 row_bounds(f::AffineForm) = (f.lower, f.upper)
 equality_indices(f::AffineForm) = f.eqidx
 inequality_indices(f::AffineForm) = f.inidx
+violation_indices(f::AffineForm) = f.gidx
+cone_blocks(f::AffineForm) = f.cones
 L2OCore.objective_sign(f::AffineForm) = f.sense
 L2OCore.equality_rows(f::AffineForm) = f.eq
 L2OCore.bound_rows(f::AffineForm) = f.bnd
@@ -276,15 +280,17 @@ end
     lipschitz_constant(form::AffineForm; rows = :all) -> Real
 
 Lipschitz constant `L = 2‖A_R‖₂²` of the gradient of `‖F_R - Π(F_R)‖²` on the
-rows `R` (`:all` box rows, `:inequality` or `:equality`). Gradient descent with
+rows `R` (`:all` constraint rows, `:inequality` (box inequalities and cone
+blocks, [`violation_indices`](@ref)) or `:equality`). It holds for cones too,
+since `F ↦ F - Π_C(F)` is 1-Lipschitz for any closed convex set. Gradient descent with
 step `1/L` on that function never increases it (descent lemma); see the Theory
 page.
 """
 function lipschitz_constant(f::AffineForm; rows::Symbol=:all)
     R = if rows === :all
-        sort!(vcat(collect(f.eqidx), collect(f.inidx)))
+        sort!(vcat(collect(f.eqidx), collect(f.gidx)))
     elseif rows === :inequality
-        collect(f.inidx)
+        collect(f.gidx)
     elseif rows === :equality
         collect(f.eqidx)
     else
@@ -311,8 +317,9 @@ ChainRules `rrule`: `batch_objective` and `constraint_values` use
 gradients/Jacobians; `constraint_vjp` uses Hessian-of-the-Lagrangian products,
 so unrolled DC3 corrections are differentiated exactly.
 
-Assumptions: twice continuously differentiable functions; box-like sets only
-(as for [`AffineForm`](@ref)); no legacy `@NL` macros. Not thread-safe (the
+Assumptions: twice continuously differentiable functions; box-like sets,
+second-order and rotated second-order cones (as for [`AffineForm`](@ref)); no
+legacy `@NL` macros. Not thread-safe (the
 form owns evaluation buffers).
 """
 struct NLPForm{E<:MOI.Nonlinear.Evaluator} <: AbstractProblemForm
@@ -328,6 +335,8 @@ struct NLPForm{E<:MOI.Nonlinear.Evaluator} <: AbstractProblemForm
     affine::BitVector
     eqidx::Vector{Int}
     inidx::Vector{Int}
+    cones::Vector{Tuple{UnitRange{Int},Symbol}}
+    gidx::Vector{Int}
     jac_structure::Vector{Tuple{Int,Int}}
     jac_values::Vector{Float64}
     xbuf::Vector{Float64}
@@ -378,17 +387,16 @@ function NLPForm(problem::L2OCore.ParametricProblem)
     lower, upper = fill(-Inf, m), fill(Inf, m)
     bnd = falses(m)
     affine = falses(m)
+    cones = Tuple{UnitRange{Int},Symbol}[]
     for (c, rows) in zip(L2OCore.constraint_refs(problem), L2OCore.dual_layout(problem))
         cobj = JuMP.constraint_object(c)
         set = JuMP.moi_set(cobj)
-        set isa _BOX_SETS || throw(
-            ArgumentError(
-                "constraint set $(nameof(typeof(set))) is not supported; DC3/FSNet need " *
-                "box-like sets (EqualTo, GreaterThan, LessThan, Interval, Zeros, " *
-                "Nonnegatives, Nonpositives)",
-            ),
-        )
-        l, u = _bounds(set)
+        if set isa _BOX_SETS
+            l, u = _bounds(set)
+        else
+            push!(cones, (rows, _cone_kind(set)))  # throws for unsupported sets
+            l, u = -Inf, Inf
+        end
         fs = _scalar_rows(JuMP.moi_function(cobj.func))
         length(fs) == length(rows) || error("internal error: row count mismatch")
         for (r, fr) in zip(rows, fs)
@@ -421,6 +429,8 @@ function NLPForm(problem::L2OCore.ParametricProblem)
         affine,
         findall(eq),
         findall(inmask),
+        cones,
+        sort!(vcat(findall(inmask), _cone_rows(cones))),
         js,
         zeros(length(js)),
         zeros(n + np),
@@ -433,6 +443,8 @@ L2OCore.num_decision_variables(f::NLPForm) = f.n
 row_bounds(f::NLPForm) = (f.lower, f.upper)
 equality_indices(f::NLPForm) = f.eqidx
 inequality_indices(f::NLPForm) = f.inidx
+violation_indices(f::NLPForm) = f.gidx
+cone_blocks(f::NLPForm) = f.cones
 L2OCore.objective_sign(f::NLPForm) = f.sense
 L2OCore.equality_rows(f::NLPForm) = f.eq
 L2OCore.bound_rows(f::NLPForm) = f.bnd

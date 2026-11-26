@@ -66,8 +66,9 @@ solve them, so you can compare against the optimum with `evaluate`.
 
 - A JuMP model with parameters (`@variable(m, p in MOI.Parameter(v))`) and
   box-like constraint sets (`==`, `<=`, `>=`, intervals, variable bounds,
-  `Zeros`, `Nonnegatives`, `Nonpositives`). Conic constraints such as
-  second-order cones are rejected (see [Extension points](@ref)).
+  `Zeros`, `Nonnegatives`, `Nonpositives`), second-order cones
+  (`[t; x] in SecondOrderCone()`) and rotated second-order cones. Other cones
+  (PSD, exponential) are rejected (see [Extension points](@ref)).
 - Constraint functions and objective that are affine, quadratic or nonlinear
   (`@constraint`/`@objective` with nonlinear expressions, not the legacy `@NL`
   macros).
@@ -122,7 +123,10 @@ flowchart LR
   `penalty = :norm` with `λ_ineq = λ_eq = 5` reproduces the loss of the authors'
   code. Larger values push the proxy toward
   feasibility but make the loss stiffer.
-- FSNet: `train_steps` (``K``) and `unroll` (``K'``) trade gradient accuracy for
+- FSNet: `solver = :lbfgs` reaches feasibility in far fewer iterations than
+  gradient descent. On the paper's QP family, 50 L-BFGS iterations bring
+  ``\phi`` below ``10^{-12}`` where gradient descent is still above ``10^{-1}``.
+  `train_steps` (``K``) and `unroll` (``K'``) trade gradient accuracy for
   cost; `ρ` weighs the distance between the prediction and its feasible
   correction.
 

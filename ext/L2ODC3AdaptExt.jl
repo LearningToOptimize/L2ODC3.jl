@@ -29,6 +29,8 @@ function Adapt.adapt_structure(to, f::AffineForm)
         f.bnd,
         _adapt_index(to, f.eqidx),
         _adapt_index(to, f.inidx),
+        f.cones,
+        _adapt_index(to, f.gidx),
     )
 end
 

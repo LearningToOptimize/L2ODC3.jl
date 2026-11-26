@@ -64,7 +64,8 @@ Keyword arguments:
 
 Completed predictions satisfy the equality constraints to round-off for
 affine equalities, and to `newton_tol` when Newton converges for nonlinear
-equalities. Supports `LinearConic` (box-like sets only), `ConvexQuadratic` and
+equalities. Supports `LinearConic` (box-like sets and second-order cones),
+`ConvexQuadratic` and
 `SmoothNonlinear` problems.
 """
 struct DC3{S,C} <: L2OCore.AbstractPrimalMethod
@@ -157,7 +158,7 @@ descended: the reduced inequality violation `v(z)` for DC3
 `DC3` scales it by `1 - momentum` (see [`DC3`](@ref)).
 """
 function default_step_size(form::AffineForm, c::LinearCompletion)
-    I = collect(form.inidx)
+    I = collect(form.gidx)
     isempty(I) && return one(eltype(form.A))
     L = 2 * LinearAlgebra.opnorm(Matrix(form.A[I, :] * c.Kz))^2
     return L > 0 ? inv(L) : one(L)
@@ -291,7 +292,7 @@ end
 """
     FSNet(; ρ = 10.0, train_steps = 20, test_steps = 100, unroll = train_steps,
           step_size = nothing, penalty = 10.0, penalty_threshold = 1e3,
-          test_tol = 0.0)
+          test_tol = 0.0, solver = :gd, memory = 10)
 
 Feasibility-Seeking Neural Network (Nguyen & Donti, 2025,
 [arXiv:2506.00362](https://arxiv.org/abs/2506.00362)), a primal method. The proxy
@@ -313,8 +314,12 @@ are those of the authors' reference configuration; the switch is evaluated per
 instance on `φ(y_θ(x))`, as in the paper's formula (the reference code switches
 on batch means).
 
-The paper's experiments use L-BFGS for the inner problem; this implementation
-uses gradient descent, the setting of the paper's convergence theory.
+`solver = :gd` (default) runs gradient descent with step `η_φ`, the setting of
+the paper's convergence theory (Theorem 1). `solver = :lbfgs` runs batched
+L-BFGS with `memory` curvature pairs and Armijo backtracking
+([`feasibility_seeking_lbfgs`](@ref)), the inner solver of the paper's
+experiments; `step_size` is then only the first trial step (default `1/L` for
+affine problems, `1` otherwise).
 
 A finite number of steps does not make the prediction feasible; under the
 assumptions of [`feasibility_seeking`](@ref) each step reduces the violation.
@@ -328,6 +333,8 @@ struct FSNet{S} <: L2OCore.AbstractPrimalMethod
     penalty::Float64
     penalty_threshold::Float64
     test_tol::Float64
+    solver::Symbol
+    memory::Int
 end
 
 function FSNet(;
@@ -339,7 +346,11 @@ function FSNet(;
     penalty::Real=10.0,
     penalty_threshold::Real=1e3,
     test_tol::Real=0.0,
+    solver::Symbol=:gd,
+    memory::Integer=10,
 )
+    solver in (:gd, :lbfgs) || throw(ArgumentError("solver must be :gd or :lbfgs"))
+    memory >= 1 || throw(ArgumentError("memory must be at least 1"))
     train_steps >= 0 && test_steps >= 0 && unroll >= 0 ||
         throw(ArgumentError("steps must be nonnegative"))
     step_size === nothing ||
@@ -354,6 +365,8 @@ function FSNet(;
         Float64(penalty),
         Float64(penalty_threshold),
         Float64(test_tol),
+        solver,
+        Int(memory),
     )
 end
 
@@ -373,7 +386,13 @@ L2OCore.supports(::FSNet, ::_SUPPORTED_CLASSES) = true
 
 function L2OCore.decompose(problem::L2OCore.ParametricProblem, m::FSNet)
     form = problem_form(problem)
-    γ = m.step_size === nothing ? default_step_size(form) : m.step_size
+    γ = if m.step_size !== nothing
+        m.step_size
+    elseif m.solver === :lbfgs && !(form isa AffineForm)
+        1.0  # only the first trial step of the line search
+    else
+        default_step_size(form)
+    end
     return FSNetDecomposition(form, γ)
 end
 
@@ -384,15 +403,15 @@ function predict(
     Y::AbstractMatrix;
     training::Bool=false,
 )
-    return feasibility_seeking(
-        d.form,
-        Y,
-        P;
-        steps=training ? m.train_steps : m.test_steps,
-        unroll=training ? m.unroll : 0,
-        step_size=d.step_size,
-        tol=training ? 0.0 : m.test_tol,
-    )
+    steps = training ? m.train_steps : m.test_steps
+    unroll = training ? m.unroll : 0
+    tol = training ? 0.0 : m.test_tol
+    if m.solver === :lbfgs
+        return feasibility_seeking_lbfgs(
+            d.form, Y, P; steps, unroll, memory=m.memory, step_size=d.step_size, tol
+        )
+    end
+    return feasibility_seeking(d.form, Y, P; steps, unroll, step_size=d.step_size, tol)
 end
 
 function training_loss(

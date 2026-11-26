@@ -23,6 +23,7 @@ L2OCore = {url = "https://github.com/LearningToOptimize/LearningToOptimize.jl", 
 [compat]
 Adapt = "4"
 Aqua = "0.8"
+Clarabel = "0.9, 0.10, 0.11"
 ChainRulesCore = "1.20"
 ExplicitImports = "1.6"
 FiniteDifferences = "0.12"
@@ -44,6 +45,7 @@ julia = "1.10"
 [extras]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+Clarabel = "61c947e1-3e6d-4ee4-985a-eec8c727bd6e"
 ExplicitImports = "7d51a73a-1435-4ff3-83d9-f097790105c7"
 FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
@@ -56,4 +58,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [targets]
-test = ["Adapt", "Aqua", "ExplicitImports", "FiniteDifferences", "ForwardDiff", "HiGHS", "Ipopt", "JET", "JLArrays", "StableRNGs", "Test", "Zygote"]
+test = ["Adapt", "Aqua", "Clarabel", "ExplicitImports", "FiniteDifferences", "ForwardDiff", "HiGHS", "Ipopt", "JET", "JLArrays", "StableRNGs", "Test", "Zygote"]

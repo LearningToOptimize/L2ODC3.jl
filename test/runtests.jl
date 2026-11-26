@@ -4,6 +4,7 @@ using Test
 
 using Adapt: Adapt
 using Aqua: Aqua
+using Clarabel: Clarabel
 using ExplicitImports: ExplicitImports
 using FiniteDifferences: FiniteDifferences
 using ForwardDiff: ForwardDiff
@@ -23,6 +24,8 @@ include("properties.jl")
     @testset "methods and pipeline" include("test_methods.jl")
     @testset "solver optima" include("test_optima.jl")
     @testset "reference implementations" include("test_reference.jl")
+    @testset "second-order cones" include("test_cones.jl")
+    @testset "L-BFGS feasibility seeking" include("test_lbfgs.jl")
     @testset "GPU array types" include("test_gpu.jl")
     @testset "code quality" include("test_quality.jl")
 end
