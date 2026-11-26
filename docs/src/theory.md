@@ -186,6 +186,50 @@ system for an inner gradient (no nested AD). Instead:
 
 All of these are checked against finite differences in the test suite.
 
+## Second-order cones
+
+Conic inequalities enter through the same projection residual. For any
+closed convex set ``C``, the function ``\tfrac12 \operatorname{dist}^2(F, C)``
+is differentiable, with gradient ``F - \Pi_C(F)``, and the map
+``F \mapsto F - \Pi_C(F)`` is 1-Lipschitz (Moreau). The package uses this for
+`MOI.SecondOrderCone` blocks
+``K = \{(t, x) : \|x\|_2 \le t\}``, whose projection has the closed form
+
+```math
+\Pi_K(t, x) =
+\begin{cases}
+(t, x) & \|x\| \le t,\\
+0 & \|x\| \le -t,\\
+\tfrac{t + \|x\|}{2}\,\big(1,\ x/\|x\|\big) & \text{otherwise},
+\end{cases}
+```
+
+([`soc_residual`](@ref)). `MOI.RotatedSecondOrderCone` blocks
+``\{(t, u, x) : 2tu \ge \|x\|^2,\ t, u \ge 0\}`` are mapped to it by the
+orthogonal map ``(t, u) \mapsto ((t + u)/\sqrt2,\ (t - u)/\sqrt2)``
+([`rsoc_residual`](@ref)). [`projection_residual`](@ref) stacks the interval
+residuals of box rows and the cone residuals of cone blocks in row order.
+Consequently:
+
+- the inequality violation ``v`` of DC3 and FSNet's ``\phi`` include
+  ``\operatorname{dist}^2(F_K, K)`` for every cone block;
+- the correction directions are ``J^\top 2(F - \Pi_C(F))``, unchanged in form;
+- the Lipschitz constants ``L = 2\|A_I K_z\|_2^2`` and ``L = 2\|A\|_2^2``
+  still hold (with ``I`` including the cone rows), because the residual is
+  1-Lipschitz. The descent inequalities and the convergence arguments of
+  [Convergence of the corrections](@ref) carry over unchanged: ``v`` is still
+  a convex, ``L``-smooth squared distance. The linear rate via Hoffman's bound
+  does not carry over, since that bound is specific to polyhedra; the
+  ``O(1/k)`` rate does.
+
+The tests verify the Moreau decomposition (``\Pi(F) \in K``,
+``-r \in K^\ast = K``, ``\langle \Pi(F), r \rangle = 0``),
+``\nabla\operatorname{dist}^2 = 2r`` by AD, agreement with MathOptInterface
+distances, monotone descent on a portfolio SOCP, and agreement with the
+Clarabel optimum (`test_cones.jl`). The norm is
+smoothed as ``\sqrt{\|x\|^2 + \varepsilon^2}`` with machine ``\varepsilon`` so
+that derivatives are finite at ``x = 0``.
+
 ## FSNet
 
 FSNet predicts all variables ``y_\theta(x)`` and minimizes the total violation
@@ -211,6 +255,18 @@ F = f_x(\hat y) + \frac{\rho}{2}\|y_\theta(x) - \hat y\|_2^2
 
 For affine constraints, ``\phi`` is convex with ``L = 2\|A\|_2^2``
 ([`lipschitz_constant`](@ref)), and the default step is ``\eta = 1/L``.
+
+**L-BFGS** (`FSNet(; solver = :lbfgs)`, [`feasibility_seeking_lbfgs`](@ref)) is
+the inner solver of the paper's experiments. Each instance (column) is an
+independent problem: the two-loop recursion (Nocedal & Wright, Algorithm 7.4)
+uses that column's curvature pairs ``(s_i, y_i)``. A pair is dropped where
+``s_i^\top y_i \le \varepsilon``. A non-descent direction falls back to
+``-\nabla\phi``, and Armijo backtracking
+``\phi(s + t d) \le \phi(s) + c\, t\, \nabla\phi^\top d`` makes ``\phi``
+non-increasing. As in the authors' code, derivatives flow through the
+iterates, the curvature pairs and the two-loop recursion, while the
+line-search step lengths are held constant (they are piecewise constant in the
+input). Truncation to the first ``K'`` iterations is as for gradient descent.
 
 ## Convergence of the corrections
 
@@ -280,9 +336,10 @@ Ipopt's local optimum on a nonlinear problem.
 - **Second-order terms** through the nonlinear correction are exact, from
   MathOptInterface Hessian-of-the-Lagrangian products rather than autograd of
   hand-written Jacobians as in the reference code.
-- **FSNet inner solver:** gradient descent, the setting of the paper's
-  theory. The experiments in [FSNet] use L-BFGS with line search; this is a
-  planned extension.
+- **FSNet inner solver:** gradient descent by default, the setting of the
+  paper's theory. L-BFGS with Armijo backtracking, the solver of the
+  experiments, is available as `solver = :lbfgs`. It is per instance, whereas
+  the authors' code runs L-BFGS on the batch-mean violation.
 - **FSNet truncation:** derivatives through the first ``K'`` of ``K`` iterations
   (as stated in Section 5 of [FSNet]), with the later iterations entering as a
   constant offset.
@@ -309,4 +366,4 @@ Ipopt's local optimum on a nonlinear problem.
   | dependent variables | not specified | random subset with ``\lvert\det A_D\rvert \ge 10^{-4}`` | pivoted QR, or `dependent` |
   | FSNet ``\rho`` (distance weight ``\rho/2``) | tuned | ``\rho/2 = 5`` | ``\rho = 10`` |
   | FSNet early penalty ``\rho_\phi, Q`` | per instance, Section 5 | 10, ``10^3``, on batch means | 10, ``10^3``, per instance |
-  | FSNet inner solver | gradient descent (theory), L-BFGS (experiments) | L-BFGS, 50 iterations, 30 differentiated | gradient descent |
+  | FSNet inner solver | gradient descent (theory), L-BFGS (experiments) | L-BFGS, 50 iterations, 30 differentiated | gradient descent (`solver = :gd`) or L-BFGS (`solver = :lbfgs`) |

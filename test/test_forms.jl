@@ -94,7 +94,7 @@ end
 end
 
 @testset "unsupported problems" begin
-    prob = ParametricProblem(socp())
+    prob = ParametricProblem(psd_problem())
     @test_throws ArgumentError AffineForm(prob)
     @test_throws ArgumentError NLPForm(prob)
     @test_throws ArgumentError L2OPipeline(prob, DC3())

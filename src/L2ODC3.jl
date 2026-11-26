@@ -26,8 +26,10 @@ import MathOptInterface as MOI
 using Random: Random
 
 include("forms.jl")
+include("cones.jl")
 include("completion.jl")
 include("correction.jl")
+include("lbfgs.jl")
 include("methods.jl")
 
 # Methods and decompositions
@@ -49,6 +51,11 @@ export AbstractProblemForm,
     equality_violation,
     inequality_violation,
     total_violation,
+    projection_residual,
+    violation_indices,
+    cone_blocks,
+    soc_residual,
+    rsoc_residual,
     lipschitz_constant
 # Completion
 export AbstractCompletion,
@@ -61,7 +68,11 @@ export AbstractCompletion,
     completion_pullback
 # Correction and feasibility seeking
 export reduced_violation_gradient,
-    inequality_correction, violation_gradient, feasibility_seeking, default_step_size
+    inequality_correction,
+    violation_gradient,
+    feasibility_seeking,
+    feasibility_seeking_lbfgs,
+    default_step_size
 # Losses and batch entry points
 export soft_loss, predict, training_loss
 

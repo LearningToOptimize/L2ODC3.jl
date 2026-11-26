@@ -35,6 +35,11 @@ inequality_residual
 equality_violation
 inequality_violation
 total_violation
+projection_residual
+violation_indices
+cone_blocks
+soc_residual
+rsoc_residual
 lipschitz_constant
 ```
 
@@ -58,6 +63,7 @@ reduced_violation_gradient
 inequality_correction
 violation_gradient
 feasibility_seeking
+feasibility_seeking_lbfgs
 default_step_size
 ```
 

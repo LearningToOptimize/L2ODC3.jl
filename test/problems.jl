@@ -80,7 +80,7 @@ function redundant_lp(; consistent=true)
     return model
 end
 
-"Second-order cone constraint: not supported by DC3/FSNet forms."
+"Second-order cone constraint with an equality."
 function socp()
     model = Model()
     @variable(model, p in MOI.Parameter(1.0))
@@ -89,6 +89,52 @@ function socp()
     @constraint(model, x[1] + x[2] == p)
     @constraint(model, [t; x] in SecondOrderCone())
     @objective(model, Min, t)
+    return model
+end
+
+"PSD cone: not supported by DC3/FSNet forms."
+function psd_problem()
+    model = Model()
+    @variable(model, p in MOI.Parameter(1.0))
+    @variable(model, X[1:2, 1:2], Symmetric)
+    @constraint(model, X in PSDCone())
+    @constraint(model, X[1, 1] + X[2, 2] == p)
+    @objective(model, Min, X[1, 2])
+    return model
+end
+
+"""
+Long-only portfolio with a parametric risk budget: maximize expected return
+`rᵀw - γ‖w‖²` subject to `Σw = 1`, `w ≥ 0` and the second-order cone
+`‖F w‖₂ ≤ σ` (`r` and `σ` are parameters).
+"""
+function portfolio_socp(; n=6, k=3, seed=1, sense=MOI.MIN_SENSE)
+    rng = StableRNG(seed)
+    Fm = randn(rng, k, n) ./ 3
+    model = Model()
+    @variable(model, r[1:n] in MOI.Parameter.(rand(rng, n)))
+    @variable(model, σ in MOI.Parameter(0.5))
+    @variable(model, w[1:n] >= 0)
+    @constraint(model, sum(w) == 1)
+    @constraint(model, [σ; Fm * w] in SecondOrderCone())
+    if sense == MOI.MIN_SENSE
+        @objective(model, Min, -r' * w + 0.05 * w' * w)
+    else
+        @objective(model, Max, r' * w - 0.05 * w' * w)
+    end
+    return model
+end
+
+"Rotated second-order cone: `min t + u` s.t. `2tu ≥ ‖x‖²`, `Σx = p`."
+function rsoc_problem()
+    model = Model()
+    @variable(model, p in MOI.Parameter(1.0))
+    @variable(model, x[1:3])
+    @variable(model, t)
+    @variable(model, u)
+    @constraint(model, [t; u; x] in RotatedSecondOrderCone())
+    @constraint(model, sum(x) == p)
+    @objective(model, Min, t + u)
     return model
 end
 
