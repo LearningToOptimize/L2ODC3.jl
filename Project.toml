@@ -18,7 +18,7 @@ Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 L2ODC3AdaptExt = "Adapt"
 
 [sources]
-L2OCore = {url = "https://github.com/LearningToOptimize/LearningToOptimize.jl", rev = "ar/l2ocore-design", subdir = "lib/L2OCore"}
+L2OCore = {url = "https://github.com/LearningToOptimize/LearningToOptimize.jl", rev = "main", subdir = "lib/L2OCore"}
 
 [compat]
 Adapt = "4"
