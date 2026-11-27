@@ -1,5 +1,17 @@
 # L2ODC3.jl
 
+```@raw html
+<p class="eyebrow">Equality completion · Inequality correction · Hard constraints</p>
+<figure class="fig hero has-compact">
+```
+![DC3, deep constraint completion and correction. Forward pass: the proxy N_theta maps the parameters x to the independent variables z; the equality completion phi_x of z solves h_x of z and phi_x of z equal to zero (one matrix product for affine equalities, Newton's method otherwise); t unrolled correction steps, z replaced by z minus gamma Delta z and re-completed, reduce the inequality violation (t_train steps in training, t_test at inference), giving y-hat. Training loss (eq. 2 of DC3): ell of y-hat equals f_x of y-hat plus lambda_g times the squared norm of ReLU of g_x of y-hat plus lambda_h times the squared norm of h_x of y-hat; self-supervised, no solver labels. Backward pass: gradients return to theta through the unrolled corrections and, by the implicit function theorem, through the completion, d phi_x / dz equals minus the inverse of J^h with respect to phi times J^h with respect to z (eq. 3).](assets/diagrams/l2odc3--completion-correction.svg)
+
+![The same diagram in a narrow layout.](assets/diagrams/l2odc3--completion-correction-compact.svg)
+```@raw html
+<figcaption><i>The proxy predicts the independent variables; the equalities are solved for the rest, unrolled correction steps reduce the inequality violation, and the soft loss trains the proxy through both.</i></figcaption>
+</figure>
+```
+
 L2ODC3.jl trains neural-network proxies for parametric optimization problems
 that must satisfy hard constraints. It implements two methods on the
 `L2OCore` interface of the
@@ -21,17 +33,6 @@ Problems are JuMP models with parameters. The core is framework-agnostic: any
 callable proxy and any ChainRules-compatible AD (Zygote is tested). Affine
 problems run on GPU arrays.
 
-```mermaid
-flowchart LR
-    x["parameters x"] --> NN["proxy N_θ"]
-    NN --> z["independent z"]
-    z --> phi["completion φ_x(z): h_x(y) = 0"]
-    phi --> rho["correction ρ_x: steps on ReLU(g_x)²"]
-    rho --> y["ŷ"]
-    y --> loss["f_x(ŷ) + λg‖ReLU(g_x(ŷ))‖² + λh‖h_x(ŷ)‖²"]
-    loss -. "backprop through ρ and φ (implicit function theorem)" .-> NN
-```
-
 ## Installation
 
 The registered LearningToOptimize 1.0.0 predates the `L2OCore` interface.
@@ -48,7 +49,7 @@ Pkg.add("JuMP")   # to write problems
 
 The [example](examples/dc3_qp.md) also uses HiGHS, Lux, Optimisers and Zygote.
 
-## Contents
+## Where to go next
 
 - [Theory](theory.md): the methods as optimization problems, their
   derivatives and step sizes, and where the package departs from the papers.

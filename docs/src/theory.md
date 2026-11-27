@@ -46,6 +46,17 @@ Maximization problems are handled by minimizing ``s \cdot f`` with
 
 ## DC3
 
+```@raw html
+<figure class="fig has-compact">
+```
+![DC3, deep constraint completion and correction. Forward pass: the proxy N_theta maps the parameters x to the independent variables z; the equality completion phi_x of z solves h_x of z and phi_x of z equal to zero (one matrix product for affine equalities, Newton's method otherwise); t unrolled correction steps, z replaced by z minus gamma Delta z and re-completed, reduce the inequality violation (t_train steps in training, t_test at inference), giving y-hat. Training loss (eq. 2 of DC3): ell of y-hat equals f_x of y-hat plus lambda_g times the squared norm of ReLU of g_x of y-hat plus lambda_h times the squared norm of h_x of y-hat; self-supervised, no solver labels. Backward pass: gradients return to theta through the unrolled corrections and, by the implicit function theorem, through the completion, d phi_x / dz equals minus the inverse of J^h with respect to phi times J^h with respect to z (eq. 3).](assets/diagrams/l2odc3--completion-correction.svg)
+
+![The same diagram in a narrow layout.](assets/diagrams/l2odc3--completion-correction-compact.svg)
+```@raw html
+<figcaption><b>DC3 in the notation of this page.</b> $N_\theta$ predicts the independent variables $z$; the completion $\varphi_x(z)$ solves the equalities; $t$ unrolled correction steps give $\hat y = \rho_x^{(t)}([z;\ \varphi_x(z)])$, which enters the training loss (eq. (2) of [DC3]). Gradients flow through the corrections and, by eq. (3), through the completion.</figcaption>
+</figure>
+```
+
 ### Equality completion (Section 3.1 of [DC3])
 
 Split ``y = (z, \varphi_x(z))``, where ``z \in \mathbb{R}^m`` are the
