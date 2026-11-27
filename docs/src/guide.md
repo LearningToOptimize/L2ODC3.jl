@@ -79,34 +79,14 @@ solve them, so you can compare against the optimum with `evaluate`.
 
 ## Concepts
 
-```mermaid
-flowchart LR
-    M["JuMP model with parameters"] --> PP["ParametricProblem"]
-    PP --> PL["L2OPipeline(problem, DC3())"]
-    PL --> F["problem form: AffineForm or NLPForm"]
-    PL --> C["completion: LinearCompletion or NewtonCompletion"]
-    X["parameters P"] --> N["proxy"]
-    N --> Z["independent variables Z"]
-    Z --> C
-    C --> Y["Y with h(Y) = 0"]
-    Y --> R["correction: unrolled steps on ReLU(g)"]
-    R --> YH["prediction"]
-    YH --> L["soft loss: f + λg ReLU(g)² + λh h²"]
-```
+A pipeline `L2OPipeline(ParametricProblem(model), DC3())` holds what is computed once per problem; the proxy maps parameters `P` to independent variables `Z`, the completion gives `Y` with ``h(Y) = 0``, and the correction and the soft loss act on the completed `Y` (see the figure on the [Theory](theory.md) page).
 
-- **Problem form** ([`AbstractProblemForm`](@ref)): differentiable, batched
-  access to the objective, constraint rows and Jacobian-transpose products.
-  [`AffineForm`](@ref) uses dense matrices and is GPU-ready. [`NLPForm`](@ref)
-  wraps `MathOptInterface.Nonlinear` and evaluates column by column on the CPU.
-  [`problem_form`](@ref) picks one.
-- **Completion** ([`AbstractCompletion`](@ref)): the map ``z \mapsto y`` that
-  satisfies the equalities, and its pullback.
-- **Decomposition** ([`DC3Decomposition`](@ref), [`FSNetDecomposition`](@ref)):
-  what `L2OCore.decompose` computes once per problem (form, completion, step
-  size). It is stored in `pipe.decomposition`.
-- **Batch entry points** [`predict`](@ref) and [`training_loss`](@ref): the
-  same computations as `complete`/`loss` on a decomposition directly. Use them
-  with device arrays.
+| concept | types | role |
+|:--|:--|:--|
+| problem form | [`AbstractProblemForm`](@ref): [`AffineForm`](@ref), [`NLPForm`](@ref); [`problem_form`](@ref) picks one | differentiable, batched access to the objective, constraint rows and Jacobian-transpose products; `AffineForm` uses dense matrices and is GPU-ready, `NLPForm` wraps `MathOptInterface.Nonlinear` and evaluates column by column on the CPU |
+| completion | [`AbstractCompletion`](@ref): [`LinearCompletion`](@ref), [`NewtonCompletion`](@ref) | the map ``z \mapsto y`` that satisfies the equalities, and its pullback |
+| decomposition | [`DC3Decomposition`](@ref), [`FSNetDecomposition`](@ref) | what `L2OCore.decompose` computes once per problem (form, completion, step size), stored in `pipe.decomposition` |
+| batch entry points | [`predict`](@ref), [`training_loss`](@ref) | the same computations as `complete` and `loss` on a decomposition directly; use them with device arrays |
 
 ## Choosing hyper-parameters
 

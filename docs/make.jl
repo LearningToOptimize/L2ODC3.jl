@@ -1,5 +1,4 @@
 using Documenter
-using DocumenterMermaid
 using Literate
 using L2OCore
 using L2ODC3
@@ -25,7 +24,7 @@ makedocs(;
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", nothing) == "true",
         canonical="https://LearningToOptimize.github.io/L2ODC3.jl",
-        assets=["assets/wider.css", "assets/redlinks.css"],
+        assets=["assets/wider.css", "assets/redlinks.css", "assets/figures.css"],
         mathengine=Documenter.MathJax3(
             Dict(
                 :tex => Dict(

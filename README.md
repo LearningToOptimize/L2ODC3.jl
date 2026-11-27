@@ -1,36 +1,22 @@
+<div align="center">
+
 # L2ODC3.jl
 
-[![CI](https://github.com/LearningToOptimize/L2ODC3.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/LearningToOptimize/L2ODC3.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![Docs: dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://LearningToOptimize.github.io/L2ODC3.jl/dev/)
-[![Codecov](https://codecov.io/gh/LearningToOptimize/L2ODC3.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/LearningToOptimize/L2ODC3.jl)
-[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
-[![JET](https://img.shields.io/badge/%F0%9F%9B%A9%EF%B8%8F_tested_with-JET.jl-233f9a)](https://github.com/aviatesk/JET.jl)
+<p><sub><b>EQUALITY COMPLETION · INEQUALITY CORRECTION · HARD CONSTRAINTS</b></sub></p>
 
-L2ODC3.jl trains neural-network proxies for parametric optimization problems
-with **hard constraints**. It implements **DC3**, *Deep Constraint Completion
-and Correction* ([Donti, Rolnick & Kolter, ICLR 2021](https://arxiv.org/abs/2104.12225)).
-The proxy predicts only the *independent* variables. The equality constraints
-are solved for the rest, in closed form for affine equalities and by Newton's
-method with implicit-function-theorem derivatives otherwise, so every
-prediction satisfies them exactly. Unrolled gradient steps along the equality
-manifold then remove the inequality violation. Training is self-supervised:
-the loss is the objective plus a soft penalty, and no solver labels are needed.
-The package also implements **FSNet**
-([Nguyen & Donti, 2025](https://arxiv.org/abs/2506.00362)), which predicts every
-variable and descends the total violation `‖h‖² + ‖ReLU(g)‖²` to a feasible
-point. Problems are written in JuMP. The package works with any proxy and any
-ChainRules-compatible AD, and affine problems run on GPU arrays.
+[![CI](https://github.com/LearningToOptimize/L2ODC3.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/LearningToOptimize/L2ODC3.jl/actions/workflows/CI.yml?query=branch%3Amain) [![Docs: dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://LearningToOptimize.github.io/L2ODC3.jl/dev/) [![Codecov](https://codecov.io/gh/LearningToOptimize/L2ODC3.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/LearningToOptimize/L2ODC3.jl) [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl) [![JET](https://img.shields.io/badge/%F0%9F%9B%A9%EF%B8%8F_tested_with-JET.jl-233f9a)](https://github.com/aviatesk/JET.jl)
 
-```mermaid
-flowchart LR
-    x["parameters x"] --> NN["proxy N_θ"]
-    NN --> z["independent variables z"]
-    z --> C["completion φ_x(z)<br/>solve h_x(y) = 0"]
-    C --> R["correction ρ_x<br/>gradient steps on ‖ReLU(g_x)‖²"]
-    R --> y["prediction ŷ"]
-    y --> L["loss f_x(ŷ) + λ_g‖ReLU(g_x(ŷ))‖² + λ_h‖h_x(ŷ)‖²"]
-    L -. "backprop through ρ and φ<br/>(implicit function theorem)" .-> NN
-```
+</div>
+
+<p align="center">
+  <picture>
+    <source media="(max-width: 640px)" srcset="docs/src/assets/diagrams/l2odc3--completion-correction-compact.svg">
+    <img src="docs/src/assets/diagrams/l2odc3--completion-correction.svg" width="760" alt="DC3, deep constraint completion and correction. Forward pass: the proxy N_theta maps the parameters x to the independent variables z; the equality completion phi_x of z solves h_x of z and phi_x of z equal to zero (one matrix product for affine equalities, Newton's method otherwise); t unrolled correction steps, z replaced by z minus gamma Delta z and re-completed, reduce the inequality violation (t_train steps in training, t_test at inference), giving y-hat. Training loss (eq. 2 of DC3): ell of y-hat equals f_x of y-hat plus lambda_g times the squared norm of ReLU of g_x of y-hat plus lambda_h times the squared norm of h_x of y-hat; self-supervised, no solver labels. Backward pass: gradients return to theta through the unrolled corrections and, by the implicit function theorem, through the completion, d phi_x / dz equals minus the inverse of J^h with respect to phi times J^h with respect to z (eq. 3).">
+  </picture>
+</p>
+<p align="center"><i>The proxy predicts the independent variables; the equalities are solved for the rest, unrolled correction steps reduce the inequality violation, and the soft loss trains the proxy through both.</i></p>
+
+L2ODC3.jl trains neural-network proxies for parametric optimization problems with **hard constraints**. It implements **DC3**, *Deep Constraint Completion and Correction* ([Donti, Rolnick & Kolter, ICLR 2021](https://arxiv.org/abs/2104.12225)). The proxy predicts only the *independent* variables. The equality constraints are solved for the rest, in closed form for affine equalities and by Newton's method with implicit-function-theorem derivatives otherwise, so every prediction satisfies them exactly. Unrolled gradient steps along the equality manifold then remove the inequality violation. Training is self-supervised: the loss is the objective plus a soft penalty, and no solver labels are needed. The package also implements **FSNet** ([Nguyen & Donti, 2025](https://arxiv.org/abs/2506.00362)), which predicts every variable and descends the total violation `‖h‖² + ‖ReLU(g)‖²` to a feasible point. Problems are written in JuMP. The package works with any proxy and any ChainRules-compatible AD, and affine problems run on GPU arrays.
 
 ## Installation
 
